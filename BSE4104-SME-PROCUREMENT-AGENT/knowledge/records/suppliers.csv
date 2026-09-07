@@ -1,0 +1,7 @@
+supplier_id,supplier_name,status,payment_terms,delivery_basis,notes
+SUP-01,Nakawa Building Supplies,preferred,30 days,charged per trip,reliable on cement
+SUP-02,Kireka Hardware Centre,approved,cash on delivery,included above 2 tonnes,
+SUP-03,Bweyogerere Steel Depot,approved,14 days,charged per trip,steel only
+SUP-04,Namanve Aggregates Ltd,approved,cash on delivery,included,aggregates only
+SUP-05,Kawempe General Traders,excluded,cash on delivery,not stated,excluded pending supplier review
+SUP-06,Ntinda Trade Stores,approved,30 days,charged per trip,

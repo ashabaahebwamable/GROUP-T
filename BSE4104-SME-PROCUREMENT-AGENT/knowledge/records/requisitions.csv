@@ -1,0 +1,2 @@
+requisition_id,case_id,item_id,quantity_base,quantity_unit,recommended_supplier_id,confirmed_supplier_id,landed_cost_per_base_unit_ugx,total_landed_cost_ugx,justification_ref,policy_flags,state,created_by,created_at,decided_by,decided_at,decision_reason
+REQ-2026-0001,CASE-0001,INV-001,10000,kg,SUP-01,,,,,,DRAFT,[officer_id],2026-09-01T09:14:00Z,,,

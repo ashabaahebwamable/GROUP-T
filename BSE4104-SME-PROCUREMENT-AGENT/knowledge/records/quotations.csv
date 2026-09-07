@@ -1,0 +1,11 @@
+quotation_id,supplier_id,item_id,quantity,quantity_unit,unit_price_ugx,price_unit,vat_treatment,delivery_charge_ugx,delivery_included,delivery_days,quotation_date,validity_days
+QUO-1001,SUP-01,INV-001,200,50kg bag,32000,per 50kg bag,inclusive,0,TRUE,3,2026-08-26,30
+QUO-1002,SUP-02,INV-001,200,50kg bag,29500,per 50kg bag,exclusive,180000,FALSE,4,2026-08-26,14
+QUO-1003,SUP-06,INV-001,10,tonne,590000,per tonne,exclusive,150000,FALSE,5,2026-08-25,21
+QUO-1004,SUP-05,INV-001,200,50kg bag,27000,per 50kg bag,exclusive,0,TRUE,6,2026-08-24,30
+QUO-1005,SUP-03,INV-003,200,12m length,58000,per 12m length,inclusive,220000,FALSE,5,2026-08-20,7
+QUO-1006,SUP-06,INV-003,200,12m length,61500,per 12m length,inclusive,0,TRUE,6,2026-08-27,30
+QUO-1007,SUP-01,INV-003,200,12m length,60000,per 12m length,exclusive,0,TRUE,4,2026-08-27,30
+QUO-1008,SUP-04,INV-006,30,tonne,95000,per tonne,inclusive,0,TRUE,2,2026-08-28,15
+QUO-1009,SUP-02,INV-006,30,tonne,88000,per tonne,exclusive,0,TRUE,3,2026-08-28,15
+QUO-1010,SUP-01,INV-005,200,kg,7800,per kg,inclusive,90000,FALSE,4,2026-08-27,30
