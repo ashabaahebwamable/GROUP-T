@@ -4,7 +4,7 @@
 Makerere University · College of Computing and Information Sciences · Department of Networks
 Course convener: Dr Kamulegeya Grace B (PhD)
 
-Group: **[PLACEHOLDER]** · Members: **[PLACEHOLDER]** · Academic year 2026/2027
+Group: **Pending group confirmation** · Members: **Azibo Isaac Alinda plus team members to be confirmed** · Academic year 2026/2027
 
 ---
 
@@ -18,11 +18,11 @@ It issues no purchase order, contacts no supplier, and moves no money. There is 
 
 ## Division of responsibility
 
-| Layer | Responsibility |
-|---|---|
-| **AI** | Extraction of commercial terms from quotation text; detection and escalation of ambiguity; grounded policy explanation with citations; drafting the requisition narrative; proposing the next step within the bounded loop |
-| **Deterministic software** | All monetary and unit arithmetic; every policy rule; authorisation; schema validation; the requisition state machine; the audit log; the tool allow-list and iteration limit |
-| **Human** | Confirming the recommended supplier; approving, rejecting or querying every requisition, at every value; authorising any policy override or durable memory write |
+| Layer                      | Responsibility                                                                                                                                                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AI**                     | Extraction of commercial terms from quotation text; detection and escalation of ambiguity; grounded policy explanation with citations; drafting the requisition narrative; proposing the next step within the bounded loop |
+| **Deterministic software** | All monetary and unit arithmetic; every policy rule; authorisation; schema validation; the requisition state machine; the audit log; the tool allow-list and iteration limit                                               |
+| **Human**                  | Confirming the recommended supplier; approving, rejecting or querying every requisition, at every value; authorising any policy override or durable memory write                                                           |
 
 Two governing principles: **no model-produced figure is used by the system**, and **no automatic approval path exists at any value**.
 
@@ -44,7 +44,7 @@ docs/
   architecture/
     week1-context-diagram.md               Week 1 deliverable — architecture + Mermaid source
   weekly-reports/
-    week1-progress-report.md               Week 1 deliverable — progress report (template)
+    week1-progress-report.md               Week 1 deliverable — progress report (reconciliation draft)
     week1-evidence-checklist.md            evidence plan
   evaluation/
     week1-manual-baseline.md               manual baseline (template)
@@ -72,16 +72,16 @@ Copy `.env.example` to `.env` and fill in your own values. `.env` is excluded by
 
 ## Project timeline
 
-| Week | Focus | Status |
-|---|---|---|
-| 1 | Problem framing and AI-native requirements | In progress |
-| 2 | Foundation-model engineering and prompting | Not started |
-| 3 | Context engineering and RAG | Not started |
-| 4 | Tools and function calling | Not started |
-| 5 | Agent architecture and bounded autonomy | Not started |
-| 6 | Memory, state and interoperability | Not started |
-| 7 | Evaluation, observability and guardrails | Not started |
-| 8 | Hardening and final release | Not started |
+| Week | Focus                                      | Status      |
+| ---- | ------------------------------------------ | ----------- |
+| 1    | Problem framing and AI-native requirements | Complete    |
+| 2    | Foundation-model engineering and prompting | Complete    |
+| 3    | Context engineering and RAG                | Not started |
+| 4    | Tools and function calling                 | Not started |
+| 5    | Agent architecture and bounded autonomy    | Not started |
+| 6    | Memory, state and interoperability         | Not started |
+| 7    | Evaluation, observability and guardrails   | Not started |
+| 8    | Hardening and final release                | Not started |
 
 ## AI use declaration
 
