@@ -9,15 +9,19 @@ Use `prompts/quotation_extraction_v1.1.txt` as the current candidate prompt.
 ## Integration contract
 
 Input:
+
 - raw quotation text
 
 Model:
-- `gemini-2.5-flash`
+
+- `gemini-3.6-flash`
 
 Expected output:
+
 - JSON object matching the prompt's schema
 
 The backend should:
+
 1. Load the prompt from the versioned prompt file rather than hard-coding it inside application logic.
 2. Insert the quotation text into the `<QUOTATION>` section.
 3. Call the Gemini API.

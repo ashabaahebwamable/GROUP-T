@@ -5,7 +5,7 @@ from urllib import error, request
 
 
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "google")
-MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
+MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3.6-flash")
 
 
 def _parse_gemini_payload(raw_payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -49,17 +49,28 @@ def call_model(prompt: str, model_name: str | None = None, api_key: str | None =
         },
     }).encode("utf-8")
 
-    req = request.Request(endpoint, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    last_error: Exception | None = None
+    for attempt in range(3):
+        req = request.Request(endpoint, data=body, headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with request.urlopen(req, timeout=60) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                return _parse_gemini_payload(payload)
+        except error.HTTPError as exc:
+            details = exc.read().decode("utf-8", errors="replace")
+            last_error = RuntimeError(f"Gemini API request failed: {details}")
+            if exc.code in {429, 500, 502, 503, 504} and attempt < 2:
+                continue
+            raise last_error from exc
+        except error.URLError as exc:
+            last_error = RuntimeError(f"Unable to reach Gemini API: {exc.reason}")
+            if attempt < 2:
+                continue
+            raise last_error from exc
 
-    try:
-        with request.urlopen(req, timeout=60) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-            return _parse_gemini_payload(payload)
-    except error.HTTPError as exc:
-        details = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Gemini API request failed: {details}") from exc
-    except error.URLError as exc:
-        raise RuntimeError(f"Unable to reach Gemini API: {exc.reason}") from exc
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Gemini API request failed without a recorded error")
 
 
 if __name__ == "__main__":

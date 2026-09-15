@@ -6,7 +6,7 @@ The Week 2 task focused on delivering the smallest useful model-backed capabilit
 
 ## Model selection
 
-The repository adopts Google Gemini 2.5 Flash as the baseline model for this phase. This choice balances affordability, prompt responsiveness, and the ability to handle short structured extraction tasks without a paid subscription. The project later uses the model only with synthetic procurement data, because the free-tier arrangement carries privacy constraints and synthetic-only rules are necessary for the capstone environment.
+The repository adopts Google Gemini 3.6 Flash as the baseline model for this phase. This choice balances affordability, prompt responsiveness, and the ability to handle short structured extraction tasks without a paid subscription. The project later uses the model only with synthetic procurement data, because the free-tier arrangement carries privacy constraints and synthetic-only rules are necessary for the capstone environment.
 
 The model selection note documents the capability, cost, latency, access and privacy considerations. These constraints are not abstract concerns; they directly shape the bounded use of the model. The model is used for evidence extraction, not supplier selection or purchase decision-making.
 
@@ -46,14 +46,22 @@ This coverage is intentionally designed to test failure modes that are common in
 
 ## Verification evidence
 
-The repository now includes automated baseline verification in `tests/test_week2_baseline.py` and `tests/test_model_client.py`. The verification command was run successfully:
+The repository includes both a deterministic extractor baseline and a live Gemini validation path. The live path was successfully exercised with a valid API key using the supported model name `gemini-3.6-flash`.
 
-`python -m unittest tests.test_week2_baseline -v`
+The real model-run output was saved to:
 
-Result: 2 tests ran and both passed.
+`evidence/live-evaluation/gemini-week2-live-results.json`
 
-That gives the team a working baseline for the next stage: Week 3 context engineering and retrieval. The extracted quotation capability is now testable, the model integration path is in place, and the prompt contract has been versioned and evaluated.
+The live run covered the same 10-case quotation matrix and produced actual model outputs, including uncertainty notes for ambiguous delivery, unsupported values, prompt-injection content, and conflicting totals.
+
+The repository also includes a parser-only unit test suite:
+
+`python -m unittest discover -s tests -v`
+
+Result: 4 tests ran and all passed.
+
+This confirms two things: the deterministic code still behaves as expected, and the live Gemini interaction also works when the API is configured and the supported model name is used.
 
 ## Conclusion
 
-Week 2 delivered the required foundation-model engineering baseline: model selection, model integration, prompt versioning, and a tested prompt matrix. The repository is now ready to proceed into context engineering and retrieval without changing the safety boundary that keeps the model in a bounded, evidence-first extraction role.
+Week 2 delivered the required foundation-model engineering baseline: model selection, prompt versioning, real model interaction, and live evaluation evidence. The project now has a working model-backed quotation-extraction path using Gemini 3.6 Flash, with detailed output captured for the same 10-case evaluation matrix.

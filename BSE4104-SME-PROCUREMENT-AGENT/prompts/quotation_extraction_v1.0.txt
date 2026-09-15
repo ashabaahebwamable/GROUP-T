@@ -2,7 +2,7 @@
 
 **Project:** ProcurePrep Agent  
 **Task:** Extract structured procurement quotation data  
-**Model:** `gemini-2.5-flash`  
+**Model:** `gemini-3.6-flash`  
 **Version:** 1.0  
 **Owner:** Tendo Caisey — AI Engineering Lead
 

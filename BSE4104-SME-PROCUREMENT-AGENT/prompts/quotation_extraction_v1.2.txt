@@ -2,7 +2,7 @@
 
 Project: ProcurePrep Agent
 Task: Evidence-first structured extraction from supplier quotations
-Model: gemini-2.5-flash
+Model: gemini-3.6-flash
 Version: 1.2
 Owner: Tendo Caisey — AI Engineering Lead
 
