@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+defaults:
+  run:
+    working-directory: BSE4104-SME-PROCUREMENT-AGENT
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -22,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f BSE4104-SME-PROCUREMENT-AGENT/requirements.txt ]; then pip install -r BSE4104-SME-PROCUREMENT-AGENT/requirements.txt; fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest
 
       - name: Run test suite
-        run: pytest BSE4104-SME-PROCUREMENT-AGENT/tests/ -v
+        run: pytest tests/ -v
