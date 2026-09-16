@@ -1,0 +1,3 @@
+item_id,item_name,category,base_unit,pack_unit,base_units_per_pack,current_stock_base,reorder_level_base,target_stock_base,supplier_lead_days_typical,last_updated
+INV-001,Portland cement 32.5N,cement,kg,50kg bag,50,1800,4000,12000,3,2026-08-28
+INV-002,Portland cement 42.5N,cement,kg,50kg bag,50,6500,3000,10000,3,2026-08-28
