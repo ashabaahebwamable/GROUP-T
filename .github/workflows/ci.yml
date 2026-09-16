@@ -22,8 +22,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f BSE4104-SME-PROCUREMENT-AGENT/requirements.txt ]; then pip install -r BSE4104-SME-PROCUREMENT-AGENT/requirements.txt; fi
           pip install pytest
 
       - name: Run test suite
-        run: pytest tests/ -v
+        run: pytest BSE4104-SME-PROCUREMENT-AGENT/tests/ -v
