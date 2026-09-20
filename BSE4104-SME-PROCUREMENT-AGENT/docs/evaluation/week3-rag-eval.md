@@ -1,9 +1,8 @@
-# Week 3 RAG Evaluation — 15-Case Question Set (DRAFT — pending Mable's review)
+# Week 3 RAG Evaluation — 15-Case Question Set
 
-Owner: Ashaba Ahebwa Mable (questions) + Akisa Maria Ashley (execution). This file is the
+ This file is the
 **question set** deliverable for W3-06. Drafted against the actual `procurement-policy.md` so
-every expected citation is real, not invented — Mable, please sanity-check wording and add/swap
-anything before we run it.
+every expected citation is real, not invented .
 
 Each row will be filled in during execution with: the system's actual answer, whether it cited
 the expected clause, and pass/fail against US-10 ("Policy answers come from the controlled corpus
