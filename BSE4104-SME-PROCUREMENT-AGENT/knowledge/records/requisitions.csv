@@ -1,2 +1,5 @@
 requisition_id,case_id,item_id,quantity_base,quantity_unit,recommended_supplier_id,confirmed_supplier_id,landed_cost_per_base_unit_ugx,total_landed_cost_ugx,justification_ref,policy_flags,state,created_by,created_at,decided_by,decided_at,decision_reason
 REQ-2026-0001,CASE-0001,INV-001,10000,kg,SUP-01,,,,,,DRAFT,[officer_id],2026-09-01T09:14:00Z,,,
+REQ-2026-0002,CASE-ADAA8ED662CA,INV-001,200.0,kg,SUP-01,,,,compare_quotations:INV-001:2026-09-27T21:25:06.608743+00:00,[],DRAFT,ESAU-JOHN,2026-09-27T21:25:06.624803+00:00,,,
+REQ-2026-0003,CASE-DFFBAB216038,INV-001,200.0,kg,SUP-01,,,,compare_quotations:INV-001:2026-09-27T21:27:36.153931+00:00,[],DRAFT,ESAU-JOHN,2026-09-27T21:27:36.169815+00:00,,,
+REQ-2026-0004,CASE-0099F0D61EBF,INV-001,200.0,kg,SUP-01,,,,compare_quotations:INV-001:2026-09-27T21:29:47.179731+00:00,[],DRAFT,ESAU-JOHN,2026-09-27T21:29:47.198596+00:00,,,
