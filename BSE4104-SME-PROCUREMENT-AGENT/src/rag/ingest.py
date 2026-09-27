@@ -14,6 +14,8 @@ from typing import Any, Dict, Iterable, List, Sequence, Tuple
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_KNOWLEDGE_DIR = PROJECT_ROOT / "knowledge"
 DEFAULT_INDEX_PATH = PROJECT_ROOT / ".rag" / "index.sqlite3"
+# Provenance metadata, not evidence (see src/ingestion/loader.py).
+EXCLUDED_FILES = {"SOURCE-REGISTER.md"}
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 
 
@@ -72,7 +74,7 @@ def _csv_chunks(path: Path, knowledge_dir: Path) -> Iterable[Dict[str, Any]]:
 
 def _iter_chunks(knowledge_dir: Path) -> Iterable[Dict[str, Any]]:
     for path in sorted(knowledge_dir.rglob("*")):
-        if not path.is_file():
+        if not path.is_file() or path.name in EXCLUDED_FILES:
             continue
         suffix = path.suffix.lower()
         if suffix == ".md":

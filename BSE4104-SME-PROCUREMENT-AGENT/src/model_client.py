@@ -1,11 +1,17 @@
 import json
 import os
+import time
 from typing import Any, Dict
 from urllib import error, request
 
 
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "google")
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3.6-flash")
+# Pause before retry 1 and retry 2. Retrying a transient 5xx immediately usually hits the
+# same overload and still counts against the free-tier daily request quota.
+RETRY_BACKOFF_SECONDS = (5, 15)
+# 429 is not retried: the free-tier quota is per day, so an immediate retry only burns more of it.
+RETRYABLE_HTTP_CODES = {500, 502, 503, 504}
 
 
 def _parse_gemini_payload(raw_payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -59,12 +65,14 @@ def call_model(prompt: str, model_name: str | None = None, api_key: str | None =
         except error.HTTPError as exc:
             details = exc.read().decode("utf-8", errors="replace")
             last_error = RuntimeError(f"Gemini API request failed: {details}")
-            if exc.code in {429, 500, 502, 503, 504} and attempt < 2:
+            if exc.code in RETRYABLE_HTTP_CODES and attempt < 2:
+                time.sleep(RETRY_BACKOFF_SECONDS[attempt])
                 continue
             raise last_error from exc
         except error.URLError as exc:
             last_error = RuntimeError(f"Unable to reach Gemini API: {exc.reason}")
             if attempt < 2:
+                time.sleep(RETRY_BACKOFF_SECONDS[attempt])
                 continue
             raise last_error from exc
 

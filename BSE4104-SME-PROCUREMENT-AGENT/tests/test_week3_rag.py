@@ -2,8 +2,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.rag.answer import REFUSAL, answer_query, build_context
+from src.ingestion import loader
 from src.rag.retrieve import retrieve
 
 
@@ -87,6 +89,18 @@ class Week3RagTests(unittest.TestCase):
         )
         self.assertEqual(result["answer"], "An officer reviews the request.")
         self.assertEqual(result["citations"], ["knowledge/policy/procurement-policy.md"])
+
+    def test_source_register_is_not_loaded_as_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            knowledge = Path(tmp)
+            (knowledge / "policy").mkdir()
+            (knowledge / "policy" / "procurement-policy.md").write_text("## 1. Rule\n1.1 Text.", encoding="utf-8")
+            (knowledge / "SOURCE-REGISTER.md").write_text("Standard VAT rate (18%)", encoding="utf-8")
+
+            with patch.object(loader, "KNOWLEDGE_DIR", knowledge):
+                sources = [Path(document["source"]).name for document in loader.load_knowledge_base()]
+
+        self.assertEqual(sources, ["procurement-policy.md"])
 
 
 if __name__ == "__main__":

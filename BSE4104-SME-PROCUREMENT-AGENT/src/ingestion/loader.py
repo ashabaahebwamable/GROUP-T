@@ -3,6 +3,9 @@ import csv
 
 
 KNOWLEDGE_DIR = Path("knowledge")
+# Provenance metadata about the corpus, not evidence. It cites facts deliberately kept out of
+# the corpus (e.g. the 18% VAT rate), so indexing it would let answers ground on them.
+EXCLUDED_FILES = {"SOURCE-REGISTER.md"}
 
 
 def load_markdown_file(path: Path) -> dict:
@@ -107,6 +110,8 @@ def load_knowledge_base() -> list[dict]:
 
     # Load Markdown documents
     for path in KNOWLEDGE_DIR.rglob("*.md"):
+        if path.name in EXCLUDED_FILES:
+            continue
         documents.append(load_markdown_file(path))
 
     # Load CSV documents

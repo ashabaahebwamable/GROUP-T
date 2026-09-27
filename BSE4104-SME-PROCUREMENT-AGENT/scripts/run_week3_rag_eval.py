@@ -99,13 +99,14 @@ def main() -> None:
     refused_correctly = 0
     total_c = sum(1 for _, _, t, _ in CASES if t == "C")
     scored_total = 0  # excludes ERROR rows from the percentage base
+    scored_c = 0  # C rows that actually ran; same exclusion as scored_total
 
     for case_id, question, case_type, expected in CASES:
         cached = cache.get(case_id)
         if cached and cached.get("verdict") != "ERROR":
             # Already have a real result from a previous run — don't burn quota re-asking.
             result = {"answer": cached["answer"], "citations": cached["citations"]}
-            verdict, note = cached["verdict"], cached["note"] + " [from earlier run — not re-queried]"
+            verdict, note = cached["verdict"], cached["note"]
         else:
             try:
                 result = answer_query(question)
@@ -120,11 +121,16 @@ def main() -> None:
             "verdict": verdict,
             "note": note,
         }
+        if cached and cached.get("verdict") != "ERROR":
+            # Label for the report only; kept out of the cache so it doesn't repeat every run.
+            note += " [from earlier run — not re-queried]"
 
         if verdict == "ERROR":
             errored += 1
         else:
             scored_total += 1
+            if case_type == "C":
+                scored_c += 1
             if verdict == "PASS":
                 passed += 1
                 if case_type == "C":
@@ -146,7 +152,7 @@ def main() -> None:
     cache_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
 
     groundedness_rate = (passed / scored_total * 100) if scored_total else 0.0
-    refusal_accuracy = (refused_correctly / total_c * 100) if total_c else 0.0
+    refusal_accuracy = (refused_correctly / scored_c * 100) if scored_c else 0.0
 
     out_path = PROJECT_ROOT / "docs" / "evaluation" / "week3-rag-eval-results.md"
     with out_path.open("w", encoding="utf-8") as f:
@@ -155,7 +161,10 @@ def main() -> None:
             f"Groundedness rate: **{groundedness_rate:.1f}%** ({passed}/{scored_total} scored, "
             f"{errored} excluded as API errors — see notes)\n\n"
         )
-        f.write(f"Refusal accuracy (C rows): **{refusal_accuracy:.1f}%** ({refused_correctly}/{total_c})\n\n")
+        f.write(
+            f"Refusal accuracy (C rows): **{refusal_accuracy:.1f}%** ({refused_correctly}/{scored_c} scored, "
+            f"{total_c - scored_c} of {total_c} not yet run)\n\n"
+        )
         if errored:
             f.write(
                 f"**{errored} case(s) hit an API error (rate limit / high demand) and were not "
