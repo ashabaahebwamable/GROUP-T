@@ -1,0 +1,1 @@
+{"chunks": [{"metadata": {"category": "procurement_policy", "section": "1. Requisition requirement"}, "score": 0.48047274351119995, "source": "knowledge\\policy\\procurement-policy.md"}], "prompt_version": "policy-qa/v1.0", "query": "Can a requisition cover more than one stock item?", "timestamp": "2026-09-24T16:06:55.725434+00:00"}
