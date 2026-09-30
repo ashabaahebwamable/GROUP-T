@@ -109,5 +109,37 @@ class ApprovalIntegrityTests(unittest.TestCase):
             approve(req, approver_id=None)  # type: ignore[arg-type]
 
 
+class AuthorizationRoleGapTests(unittest.TestCase):
+    """
+    Plan requirement (W4-04): "Unauthorized request -> officer account
+    attempting an approval is refused and logged (US-09)."
+
+    CONFIRMED GAP: approve() performs no role check at all -- it only
+    requires approver_id to be a non-empty string. An "officer" account (a
+    role that per the AI Boundary Matrix should NOT be permitted to approve
+    its own or any requisition) currently succeeds at approval exactly like
+    a legitimate approver would. This test documents that gap honestly
+    rather than asserting behaviour the code does not implement.
+    """
+
+    def test_an_officer_role_can_currently_approve_when_it_should_be_refused(self):
+        req = Requisition(requisition_id="REQ-0013", state="PENDING_APPROVAL")
+
+        # In a correct implementation, passing an officer-role identity here
+        # should raise something like an UnauthorizedApproverError. Today it
+        # does not -- the approval silently succeeds.
+        approve(req, approver_id="officer-not-approver-role")
+
+        self.assertEqual(
+            req.state,
+            "APPROVED",
+            "GAP: an officer-role identity was able to approve. There is no "
+            "role check in approve() at all. If this assertion ever fails, "
+            "it means a role check has been added and this test should be "
+            "rewritten to assert the CORRECT refuse-and-log behaviour "
+            "instead of documenting the gap.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
