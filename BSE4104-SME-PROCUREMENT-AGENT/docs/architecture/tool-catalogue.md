@@ -121,7 +121,7 @@ The implementation compares current stock with the configured reorder level and 
 
 If stock or reorder data is missing or invalid, the item is listed under `unassessable_items` with a reason, rather than given an invented yes/no answer.
 
-**Implementation status:** An item is reported only when stock is *below* the reorder level (`stock < reorder_level`). The original contract said an item *at* the reorder level must also be reordered. The team needs to decide which rule is correct and align code and contract. The input schema was made optional to match the code, which checks every item when `item_id` is omitted.
+**Implementation status:** Resolved per US-01 acceptance criterion 1: an item is reported only when stock is *below* the reorder level (`stock < reorder_level`); an item exactly at the level is not flagged. The boundary is covered by an automated equality test. The input schema is optional to match the code, which checks every item when `item_id` is omitted.
 
 ### Failure behaviour
 

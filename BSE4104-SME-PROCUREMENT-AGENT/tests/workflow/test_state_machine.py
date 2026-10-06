@@ -1,9 +1,8 @@
 """
 Week 4 deliverable (W4-05): State-machine tests.
 
-Owner: Akisa Maria Ashley (Quality/Security Lead), against Isaac Alinda's
-state_machine.py (drafted with AI assistance while Isaac's machine was
-unavailable — see the disclosure note at the top of src/workflow/state_machine.py).
+Owner: Isaac Alinda (workflow/state-machine owner). These tests verify the
+transition and authorization contract in src/workflow/state_machine.py.
 
 Required per the plan: "state-machine tests incl. an attempted illegal
 DRAFT -> APPROVED transition."
@@ -15,6 +14,7 @@ from src.workflow.state_machine import (
     BlockingFlagsUnresolvedError,
     IllegalStateTransitionError,
     Requisition,
+    UnauthorizedApproverError,
     approve,
     query,
     reject,
@@ -30,20 +30,20 @@ class LegalTransitionTests(unittest.TestCase):
 
     def test_pending_approval_can_be_approved_with_recorded_approver(self):
         req = Requisition(requisition_id="REQ-0002", state="PENDING_APPROVAL")
-        approve(req, approver_id="officer-approver-1")
+        approve(req, approver_id="approver-1", approver_role="approver")
         self.assertEqual(req.state, "APPROVED")
-        self.assertEqual(req.decided_by, "officer-approver-1")
+        self.assertEqual(req.decided_by, "approver-1")
         self.assertIsNotNone(req.decided_at)
 
     def test_pending_approval_can_be_rejected_with_reason(self):
         req = Requisition(requisition_id="REQ-0003", state="PENDING_APPROVAL")
-        reject(req, approver_id="officer-approver-1", reason="Budget exceeded")
+        reject(req, approver_id="approver-1", approver_role="approver", reason="Budget exceeded")
         self.assertEqual(req.state, "REJECTED")
         self.assertEqual(req.decision_reason, "Budget exceeded")
 
     def test_pending_approval_can_be_queried_with_reason(self):
         req = Requisition(requisition_id="REQ-0004", state="PENDING_APPROVAL")
-        query(req, approver_id="officer-approver-1", reason="Missing quotation")
+        query(req, approver_id="approver-1", approver_role="approver", reason="Missing quotation")
         self.assertEqual(req.state, "QUERIED")
 
 
@@ -54,7 +54,7 @@ class IllegalTransitionTests(unittest.TestCase):
         req = Requisition(requisition_id="REQ-0005", state="DRAFT")
 
         with self.assertRaises(IllegalStateTransitionError):
-            approve(req, approver_id="officer-approver-1")
+            approve(req, approver_id="approver-1", approver_role="approver")
 
         # Confirm the illegal attempt did not silently mutate state anyway.
         self.assertEqual(req.state, "DRAFT")
@@ -63,18 +63,18 @@ class IllegalTransitionTests(unittest.TestCase):
     def test_draft_cannot_be_rejected_directly(self):
         req = Requisition(requisition_id="REQ-0006", state="DRAFT")
         with self.assertRaises(IllegalStateTransitionError):
-            reject(req, approver_id="officer-approver-1", reason="test")
+            reject(req, approver_id="approver-1", approver_role="approver", reason="test")
         self.assertEqual(req.state, "DRAFT")
 
     def test_approved_requisition_cannot_be_approved_again(self):
         req = Requisition(requisition_id="REQ-0007", state="APPROVED")
         with self.assertRaises(IllegalStateTransitionError):
-            approve(req, approver_id="officer-approver-2")
+            approve(req, approver_id="approver-2", approver_role="approver")
 
     def test_rejected_requisition_cannot_later_be_approved(self):
         req = Requisition(requisition_id="REQ-0008", state="REJECTED")
         with self.assertRaises(IllegalStateTransitionError):
-            approve(req, approver_id="officer-approver-1")
+            approve(req, approver_id="approver-1", approver_role="approver")
 
     def test_submit_from_non_draft_state_is_illegal(self):
         req = Requisition(requisition_id="REQ-0009", state="PENDING_APPROVAL")
@@ -101,44 +101,66 @@ class ApprovalIntegrityTests(unittest.TestCase):
     def test_approve_rejects_empty_approver_id(self):
         req = Requisition(requisition_id="REQ-0011", state="PENDING_APPROVAL")
         with self.assertRaises(ValueError):
-            approve(req, approver_id="")
+            approve(req, approver_id="", approver_role="approver")
 
     def test_approve_rejects_none_approver_id(self):
         req = Requisition(requisition_id="REQ-0012", state="PENDING_APPROVAL")
         with self.assertRaises(ValueError):
-            approve(req, approver_id=None)  # type: ignore[arg-type]
+            approve(req, approver_id=None, approver_role="approver")  # type: ignore[arg-type]
 
 
-class AuthorizationRoleGapTests(unittest.TestCase):
-    """
-    Plan requirement (W4-04): "Unauthorized request -> officer account
-    attempting an approval is refused and logged (US-09)."
+class AuthorizationTests(unittest.TestCase):
+    """US-09: decision attempts require an approver and are audit-recorded."""
 
-    CONFIRMED GAP: approve() performs no role check at all -- it only
-    requires approver_id to be a non-empty string. An "officer" account (a
-    role that per the AI Boundary Matrix should NOT be permitted to approve
-    its own or any requisition) currently succeeds at approval exactly like
-    a legitimate approver would. This test documents that gap honestly
-    rather than asserting behaviour the code does not implement.
-    """
-
-    def test_an_officer_role_can_currently_approve_when_it_should_be_refused(self):
+    def test_officer_cannot_approve_and_denial_is_audited(self):
         req = Requisition(requisition_id="REQ-0013", state="PENDING_APPROVAL")
 
-        # In a correct implementation, passing an officer-role identity here
-        # should raise something like an UnauthorizedApproverError. Today it
-        # does not -- the approval silently succeeds.
-        approve(req, approver_id="officer-not-approver-role")
+        with self.assertRaises(UnauthorizedApproverError):
+            approve(req, approver_id="officer-1", approver_role="officer")
 
-        self.assertEqual(
-            req.state,
-            "APPROVED",
-            "GAP: an officer-role identity was able to approve. There is no "
-            "role check in approve() at all. If this assertion ever fails, "
-            "it means a role check has been added and this test should be "
-            "rewritten to assert the CORRECT refuse-and-log behaviour "
-            "instead of documenting the gap.",
+        self.assertEqual(req.state, "PENDING_APPROVAL")
+        self.assertIsNone(req.decided_by)
+        self.assertEqual(len(req.audit_events), 1)
+        self.assertEqual(req.audit_events[0]["action"], "approve")
+        self.assertEqual(req.audit_events[0]["actor_id"], "officer-1")
+        self.assertEqual(req.audit_events[0]["outcome"], "denied")
+        self.assertIn("timestamp", req.audit_events[0])
+
+    def test_approver_role_is_required_fail_closed(self):
+        req = Requisition(requisition_id="REQ-0014", state="PENDING_APPROVAL")
+
+        with self.assertRaises(UnauthorizedApproverError):
+            approve(req, approver_id="approver-1")
+
+        self.assertEqual(req.state, "PENDING_APPROVAL")
+        self.assertEqual(req.audit_events[0]["outcome"], "denied")
+
+    def test_preparer_cannot_approve_own_requisition(self):
+        req = Requisition(
+            requisition_id="REQ-0015",
+            state="PENDING_APPROVAL",
+            created_by="officer-1",
         )
+
+        with self.assertRaises(UnauthorizedApproverError):
+            approve(req, approver_id="officer-1", approver_role="approver")
+
+        self.assertEqual(req.state, "PENDING_APPROVAL")
+        self.assertEqual(req.audit_events[0]["outcome"], "denied")
+
+    def test_reject_and_query_also_require_approver_role(self):
+        for action in (reject, query):
+            with self.subTest(action=action.__name__):
+                req = Requisition(requisition_id="REQ-0016", state="PENDING_APPROVAL")
+                with self.assertRaises(UnauthorizedApproverError):
+                    action(
+                        req,
+                        approver_id="officer-1",
+                        approver_role="officer",
+                        reason="Not authorized",
+                    )
+                self.assertEqual(req.state, "PENDING_APPROVAL")
+                self.assertEqual(req.audit_events[0]["outcome"], "denied")
 
 
 if __name__ == "__main__":

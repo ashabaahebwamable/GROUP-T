@@ -44,12 +44,9 @@ class UnauthorizedRequestTests(unittest.TestCase):
     """
     Scenario 2: an unauthorized request is refused and logged (US-09).
 
-    LIMITATION: src/workflow/state_machine.py (W4-05, owned by Isaac) does not exist
-    yet, so there is no role-based approval check to test directly. The best current
-    proxy is that no approval-granting tool is exposed to the model at all -- the
-    allow-list itself is the current authorization boundary. This test documents that
-    interim state. Once state_machine.py lands, this must be replaced with a real
-    test of an authenticated officer attempting approval and being refused by role.
+    No approval-granting tool is exposed to the model. Direct decision authorization
+    is covered by tests/workflow/test_state_machine.py; these router tests verify
+    the model-facing allow-list still blocks and traces an attempted approval call.
     """
 
     def test_no_approval_capability_is_exposed_to_the_model(self):

@@ -13,6 +13,20 @@ from src.tools.procurement import (
 
 
 class ProcurementToolTests(unittest.TestCase):
+    def test_stock_exactly_at_reorder_level_is_not_flagged(self):
+        result = check_reorder_levels(inventory=[
+            {
+                "item_id": "INV-EQUAL",
+                "item_name": "At reorder level",
+                "current_stock_base": "10",
+                "reorder_level_base": "10",
+                "target_stock_base": "20",
+            },
+        ])
+
+        self.assertEqual(result["items_to_reorder"], [])
+        self.assertEqual(result["unassessable_items"], [])
+
     def test_reorder_check_flags_only_below_threshold_and_reports_missing_level(self):
         inventory = [
             {

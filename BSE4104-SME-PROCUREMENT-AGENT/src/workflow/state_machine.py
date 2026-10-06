@@ -1,22 +1,15 @@
-"""
-Requisition approval state machine (W4-05).
+"""Deterministic requisition approval state machine (W4-05).
 
-Drafted to unblock W4-05; see the AI Engineering Log for the disclosure
-entry. Isaac Alinda, as the assigned owner, should
-review and take ownership before this is treated as final.
+Only a caller identified as an approver may decide a pending requisition, and
+the requisition preparer may not approve their own work. Authorization
+failures and decisions are captured as audit events for the persistence layer.
 
-Governing rule (per the plan and the AI Boundary Matrix, Principle 2):
-"The implementation contains no automatic approval path at any value, so
-autonomous approval is impossible rather than merely prohibited."
+State model::
 
-State model (from knowledge/records/requisitions.csv schema):
-    DRAFT -> PENDING_APPROVAL -> APPROVED
-                               -> REJECTED
-                               -> QUERIED
+    DRAFT -> PENDING_APPROVAL -> APPROVED | REJECTED | QUERIED
 
-There is no function in this module that can move a requisition directly from
-DRAFT to APPROVED, or into APPROVED without a recorded approver_id and
-timestamp. That is enforced by the shape of the code, not by convention.
+There is no direct DRAFT -> APPROVED path or automatic approval path at any
+value (AI Boundary Matrix, Principle 2).
 """
 
 from __future__ import annotations
@@ -34,6 +27,10 @@ class IllegalStateTransitionError(Exception):
     not expose a code path for. This is the mechanism, not just a message:
     there is no function anywhere in this module that performs a DRAFT ->
     APPROVED transition, so attempting it always raises this error."""
+
+
+class UnauthorizedApproverError(PermissionError):
+    """Raised and audited when a non-approver or preparer attempts a decision."""
 
 
 class BlockingFlagsUnresolvedError(Exception):
@@ -59,6 +56,7 @@ class Requisition:
     decided_by: str | None = None
     decided_at: str | None = None
     decision_reason: str | None = None
+    audit_events: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.state not in VALID_STATES:
@@ -93,13 +91,94 @@ def submit_for_approval(requisition: Requisition) -> Requisition:
     return requisition
 
 
-def approve(requisition: Requisition, *, approver_id: str) -> Requisition:
+def _record_decision_event(
+    requisition: Requisition,
+    *,
+    action: str,
+    actor_id: str,
+    actor_role: str,
+    outcome: str,
+    from_state: str,
+    to_state: str | None,
+    reason: str | None = None,
+) -> None:
+    event: dict[str, Any] = {
+        "action": action,
+        "actor_id": actor_id,
+        "actor_role": actor_role,
+        "outcome": outcome,
+        "from_state": from_state,
+        "to_state": to_state,
+        "timestamp": _now_iso(),
+    }
+    if reason is not None:
+        event["reason"] = reason
+    requisition.audit_events.append(event)
+
+
+def _require_authorized_approver(
+    requisition: Requisition,
+    *,
+    approver_id: str,
+    approver_role: str | None,
+    action: str,
+) -> None:
+    role = str(approver_role or "").strip().casefold()
+    actor_id = str(approver_id or "").strip()
+    if role != "approver":
+        reason = "Only an approver account may make a requisition decision."
+        _record_decision_event(
+            requisition,
+            action=action,
+            actor_id=actor_id,
+            actor_role=role,
+            outcome="denied",
+            from_state=requisition.state,
+            to_state=None,
+            reason=reason,
+        )
+        raise UnauthorizedApproverError(reason)
+
+    if not actor_id:
+        raise ValueError(f"{action}() requires a non-empty approver_id.")
+
+    if (
+        action == "approve"
+        and requisition.created_by
+        and actor_id == requisition.created_by.strip()
+    ):
+        reason = "The officer who prepared a requisition cannot approve their own work."
+        _record_decision_event(
+            requisition,
+            action=action,
+            actor_id=actor_id,
+            actor_role=role,
+            outcome="denied",
+            from_state=requisition.state,
+            to_state=None,
+            reason=reason,
+        )
+        raise UnauthorizedApproverError(reason)
+
+
+def approve(
+    requisition: Requisition,
+    *,
+    approver_id: str,
+    approver_role: str | None = None,
+) -> Requisition:
     """PENDING_APPROVAL -> APPROVED.
 
-    Requires a real approver_id. There is no default, no "system" approver,
-    and no way to reach APPROVED from any state other than PENDING_APPROVAL
-    (AI Boundary Matrix Principle 2: no automatic approval path at any value).
+    Requires an authenticated approver role and a real approver_id. The
+    preparer cannot approve their own requisition. The role must come from a
+    trusted authentication boundary; omitted or non-approver roles fail closed.
     """
+    _require_authorized_approver(
+        requisition,
+        approver_id=approver_id,
+        approver_role=approver_role,
+        action="approve",
+    )
     if requisition.state != "PENDING_APPROVAL":
         raise IllegalStateTransitionError(
             f"Cannot approve from state {requisition.state!r}; only a "
@@ -107,52 +186,101 @@ def approve(requisition: Requisition, *, approver_id: str) -> Requisition:
             "DRAFT -> APPROVED path."
         )
 
-    if not approver_id or not str(approver_id).strip():
-        raise ValueError("approve() requires a non-empty approver_id.")
-
+    previous_state = requisition.state
     requisition.state = "APPROVED"
     requisition.decided_by = approver_id
     requisition.decided_at = _now_iso()
+    _record_decision_event(
+        requisition,
+        action="approve",
+        actor_id=approver_id,
+        actor_role=str(approver_role).strip().casefold(),
+        outcome="approved",
+        from_state=previous_state,
+        to_state=requisition.state,
+    )
     return requisition
 
 
-def reject(requisition: Requisition, *, approver_id: str, reason: str) -> Requisition:
+def reject(
+    requisition: Requisition,
+    *,
+    approver_id: str,
+    reason: str,
+    approver_role: str | None = None,
+) -> Requisition:
     """PENDING_APPROVAL -> REJECTED. Requires an approver and a reason."""
+    _require_authorized_approver(
+        requisition,
+        approver_id=approver_id,
+        approver_role=approver_role,
+        action="reject",
+    )
     if requisition.state != "PENDING_APPROVAL":
         raise IllegalStateTransitionError(
             f"Cannot reject from state {requisition.state!r}; only a "
             "PENDING_APPROVAL requisition may be rejected."
         )
 
-    if not approver_id or not str(approver_id).strip():
-        raise ValueError("reject() requires a non-empty approver_id.")
     if not reason or not str(reason).strip():
         raise ValueError("reject() requires a non-empty reason.")
 
+    previous_state = requisition.state
     requisition.state = "REJECTED"
     requisition.decided_by = approver_id
     requisition.decided_at = _now_iso()
     requisition.decision_reason = reason
+    _record_decision_event(
+        requisition,
+        action="reject",
+        actor_id=approver_id,
+        actor_role=str(approver_role).strip().casefold(),
+        outcome="rejected",
+        from_state=previous_state,
+        to_state=requisition.state,
+        reason=reason,
+    )
     return requisition
 
 
-def query(requisition: Requisition, *, approver_id: str, reason: str) -> Requisition:
+def query(
+    requisition: Requisition,
+    *,
+    approver_id: str,
+    reason: str,
+    approver_role: str | None = None,
+) -> Requisition:
     """PENDING_APPROVAL -> QUERIED. Requires an approver and a reason."""
+    _require_authorized_approver(
+        requisition,
+        approver_id=approver_id,
+        approver_role=approver_role,
+        action="query",
+    )
     if requisition.state != "PENDING_APPROVAL":
         raise IllegalStateTransitionError(
             f"Cannot query from state {requisition.state!r}; only a "
             "PENDING_APPROVAL requisition may be queried."
         )
 
-    if not approver_id or not str(approver_id).strip():
-        raise ValueError("query() requires a non-empty approver_id.")
     if not reason or not str(reason).strip():
         raise ValueError("query() requires a non-empty reason.")
 
+    previous_state = requisition.state
     requisition.state = "QUERIED"
     requisition.decided_by = approver_id
     requisition.decided_at = _now_iso()
     requisition.decision_reason = reason
+    _record_decision_event(
+        requisition,
+        action="query",
+        actor_id=approver_id,
+        actor_role=str(approver_role).strip().casefold(),
+        outcome="queried",
+        from_state=previous_state,
+        to_state=requisition.state,
+        reason=reason,
+    )
     return requisition
 
 
@@ -160,6 +288,7 @@ __all__ = [
     "VALID_STATES",
     "Requisition",
     "IllegalStateTransitionError",
+    "UnauthorizedApproverError",
     "BlockingFlagsUnresolvedError",
     "submit_for_approval",
     "approve",
