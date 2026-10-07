@@ -16,11 +16,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = PROJECT_ROOT / "knowledge" / "records" / "inventory.csv"
 QUOTATIONS_PATH = PROJECT_ROOT / "knowledge" / "records" / "quotations.csv"
 SUPPLIERS_PATH = PROJECT_ROOT / "knowledge" / "records" / "suppliers.csv"
-REQUISITIONS_PATH = PROJECT_ROOT / "knowledge" / "records" / "requisitions.csv"
+# Application state, kept outside knowledge/ so simulated drafts never become RAG evidence.
+REQUISITIONS_PATH = PROJECT_ROOT / "data" / "requisitions.csv"
 AUDIT_LOG_PATH = PROJECT_ROOT / "evidence" / "traces" / "audit-log.jsonl"
 VAT_RATE = Decimal("0.18")
 MINIMUM_QUOTATION_VALUE = Decimal("1000000")
 DIRECTOR_APPROVAL_THRESHOLD = Decimal("5000000")
+LEAD_TIME_TIE_BAND = Decimal("0.02")
 
 
 def _read_csv(path: Path | str) -> list[dict[str, str]]:
@@ -291,6 +293,19 @@ def compare_quotations(
         (quote for quote in considered if quote.get("eligible") and "landed_cost_per_base_unit" in quote),
         key=lambda quote: (quote["landed_cost_per_base_unit"], quote.get("delivery_days", math.inf)),
     )
+    recommendation_basis = "lowest computed landed cost per base unit"
+    if ranked:
+        # Policy 3.4: within two per cent on landed cost, prefer the shorter lead time.
+        cheapest = Decimal(str(ranked[0]["landed_cost_per_base_unit"]))
+        limit = cheapest * (Decimal("1") + LEAD_TIME_TIE_BAND)
+        close = [quote for quote in ranked if Decimal(str(quote["landed_cost_per_base_unit"])) <= limit]
+        preferred = min(close, key=lambda quote: (quote.get("delivery_days", math.inf), quote["landed_cost_per_base_unit"]))
+        if preferred is not ranked[0]:
+            ranked.remove(preferred)
+            ranked.insert(0, preferred)
+            recommendation_basis = (
+                "shorter delivery lead time within 2% of the lowest landed cost per base unit (policy 3.4)"
+            )
     final_policy = policy_check(
         item_quotes,
         supplier_map,
@@ -303,7 +318,7 @@ def compare_quotations(
         "quotations_considered": considered,
         "ranked_quotations": ranked,
         "recommended_supplier_id": ranked[0]["supplier_id"] if ranked else None,
-        "recommendation_basis": "lowest computed landed cost per base unit",
+        "recommendation_basis": recommendation_basis,
         "blocking_flags": list(dict.fromkeys(final_policy["blocking_flags"] + calculation_flags)),
         "approval_level": final_policy["approval_level"],
         "minimum_valid_quotations_required": final_policy["minimum_valid_quotations_required"],

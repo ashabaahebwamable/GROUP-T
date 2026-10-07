@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from src.agent.tools_router import (
@@ -8,6 +10,17 @@ from src.agent.tools_router import (
 
 
 class AgentIntegrationTests(unittest.TestCase):
+
+    def setUp(self):
+        # Keep test runs out of evidence/traces/tool-calls.jsonl.
+        self._trace_dir = tempfile.TemporaryDirectory()
+        trace_patch = patch(
+            "src.agent.tools_router.TOOL_TRACE_PATH",
+            Path(self._trace_dir.name) / "tool-calls.jsonl",
+        )
+        trace_patch.start()
+        self.addCleanup(trace_patch.stop)
+        self.addCleanup(self._trace_dir.cleanup)
 
     def test_extract_function_calls(self):
         response = {

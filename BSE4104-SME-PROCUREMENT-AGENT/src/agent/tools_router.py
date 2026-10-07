@@ -1,26 +1,57 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import copy
+import json
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
+from src.tools.policy import lookup_policy
 from src.tools.procurement import (
+    PROJECT_ROOT,
     check_reorder_levels,
     compare_quotations,
     create_requisition_draft,
-    policy_check,
 )
+
+
+# Every agent tool call is appended here, like Week 3's retrieval.jsonl.
+TOOL_TRACE_PATH = PROJECT_ROOT / "evidence" / "traces" / "tool-calls.jsonl"
 
 
 # ---------------------------------------------------------------------------
 # Tool registry
 # ---------------------------------------------------------------------------
 # These are the public names exposed to the model.
-# lookup_policy maps internally to the deterministic policy_check function.
 TOOL_REGISTRY = {
     "check_reorder_levels": check_reorder_levels,
-    "lookup_policy": policy_check,
+    "lookup_policy": lookup_policy,
     "compare_quotations": compare_quotations,
     "create_requisition_draft": create_requisition_draft,
+}
+
+
+# Fields each tool must return (tool catalogue output schemas). Checked
+# before any result is handed back to the model.
+TOOL_OUTPUT_FIELDS = {
+    "check_reorder_levels": ["items_to_reorder", "unassessable_items"],
+    "lookup_policy": ["topic", "status", "policy_section", "rule", "source"],
+    "compare_quotations": [
+        "item_id",
+        "ranked_quotations",
+        "recommended_supplier_id",
+        "blocking_flags",
+        "approval_level",
+    ],
+    "create_requisition_draft": [
+        "requisition_id",
+        "state",
+        "item_id",
+        "quantity_base",
+        "recommended_supplier_id",
+        "audit_log_reference",
+    ],
 }
 
 
@@ -48,22 +79,19 @@ TOOL_SCHEMAS = [
     {
         "name": "lookup_policy",
         "description": (
-            "Check procurement quotation and approval policy requirements "
-            "for a procurement case."
+            "Retrieve the procurement-policy section that covers a topic, "
+            "such as quotation requirements or approval thresholds. Returns "
+            "status no_evidence when the policy does not cover the topic."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "case_value_ugx": {
-                    "type": "number",
-                    "description": "Estimated procurement case value in UGX.",
-                },
-                "as_of_date": {
+                "topic": {
                     "type": "string",
-                    "description": "Optional policy validity date in YYYY-MM-DD format.",
+                    "description": "Procurement policy topic to retrieve.",
                 },
             },
-            "required": ["case_value_ugx"],
+            "required": ["topic"],
         },
     },
     {
@@ -139,6 +167,7 @@ def _trace_event(
     status: str,
     result: Any = None,
     error: str | None = None,
+    checks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
     Create one structured tool trace event.
@@ -149,7 +178,36 @@ def _trace_event(
         "status": status,
         "result": copy.deepcopy(result),
         "error": error,
+        "checks": copy.deepcopy(checks or []),
     }
+
+
+def _failure(
+    tool_name: str,
+    arguments: dict[str, Any],
+    error: str,
+    message: str,
+    *,
+    status: str = "error",
+    checks: list[dict[str, Any]] | None = None,
+    details: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build the (result, trace) pair for a call that did not succeed."""
+    result = {
+        "ok": False,
+        "tool_name": tool_name,
+        "error": error,
+        "message": message,
+        **(details or {}),
+    }
+    trace = _trace_event(
+        tool_name=tool_name,
+        arguments=arguments,
+        status=status,
+        error=message,
+        checks=checks,
+    )
+    return result, trace
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +216,84 @@ def _trace_event(
 def get_tool_schemas() -> list[dict[str, Any]]:
     """Return a defensive copy of the model-facing tool declarations."""
     return copy.deepcopy(TOOL_SCHEMAS)
+
+
+# ---------------------------------------------------------------------------
+# Argument and output validation
+# ---------------------------------------------------------------------------
+def _validate_arguments(tool_name: str, arguments: dict[str, Any]) -> str | None:
+    """Check model arguments against the declared schema before dispatch."""
+    schema = next(item for item in TOOL_SCHEMAS if item["name"] == tool_name)
+    parameters = schema["parameters"]
+    allowed = set(parameters.get("properties", {}))
+
+    unexpected = sorted(set(arguments) - allowed)
+    if unexpected:
+        return f"Unexpected argument(s) for {tool_name}: {', '.join(unexpected)}"
+
+    missing = [
+        name
+        for name in parameters.get("required", [])
+        if arguments.get(name) is None or str(arguments.get(name)).strip() == ""
+    ]
+    if missing:
+        return f"Missing required argument(s) for {tool_name}: {', '.join(missing)}"
+
+    return None
+
+
+def _validate_output(tool_name: str, output: Any) -> str | None:
+    """Reject tool output that is malformed or exceeds the tool's authority.
+
+    Returns a message naming the failing field, or None when the output is
+    valid.
+    """
+    if not isinstance(output, dict):
+        return f"{tool_name} returned {type(output).__name__}, expected an object"
+
+    for field_name, value in output.items():
+        try:
+            json.dumps(value)
+        except (TypeError, ValueError):
+            return f"Field '{field_name}' of {tool_name} output is not JSON-serializable"
+
+    for field_name in TOOL_OUTPUT_FIELDS.get(tool_name, []):
+        if field_name not in output:
+            return f"Field '{field_name}' is missing from {tool_name} output"
+
+    # The only side effect any tool may have is a DRAFT.
+    if tool_name == "create_requisition_draft" and output.get("state") != "DRAFT":
+        return (
+            f"Field 'state' of {tool_name} output is {output.get('state')!r}; "
+            "tools may only create DRAFT requisitions"
+        )
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Draft pre-checks (catalogue §6)
+# ---------------------------------------------------------------------------
+def _check_draft_against_comparison(
+    arguments: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """
+    Re-run the deterministic comparison for a draft request.
+
+    The router does not trust the model to carry blocking flags or the
+    recommended supplier forward: it recomputes both and compares the
+    model's supplier with the computed one.
+    """
+    comparison = compare_quotations(
+        arguments["item_id"],
+        arguments["quantity_base"],
+    )
+    supplier_check = check_model_vs_computed(
+        field="recommended_supplier_id",
+        model_value=arguments.get("recommended_supplier_id"),
+        computed_value=comparison.get("recommended_supplier_id"),
+    )
+    return comparison, [supplier_check]
 
 
 # ---------------------------------------------------------------------------
@@ -190,99 +326,102 @@ def dispatch_tool(
     # Allow-list enforcement
     # ------------------------------------------------------------------
     if tool_name not in TOOL_REGISTRY:
-        message = (
-            f"Tool '{tool_name}' is not in the approved tool allow-list."
-        )
-
-        result = {
-            "ok": False,
-            "tool_name": tool_name,
-            "error": "TOOL_NOT_ALLOWED",
-            "message": message,
-        }
-
-        trace = _trace_event(
-            tool_name=tool_name,
-            arguments=arguments,
+        return _failure(
+            tool_name,
+            arguments,
+            "TOOL_NOT_ALLOWED",
+            f"Tool '{tool_name}' is not in the approved tool allow-list.",
             status="blocked",
-            error=message,
         )
-
-        return result, trace
-
-    tool_function = TOOL_REGISTRY[tool_name]
-
-    # ------------------------------------------------------------------
-    # Deterministic tool execution
-    # ------------------------------------------------------------------
-    try:
-        if tool_name == "lookup_policy":
-            tool_result = tool_function(
-                quotations=[],
-                suppliers=[],
-                **arguments,
-            )
-        else:
-            tool_result = tool_function(**arguments)
-
-        result = {
-            "ok": True,
-            "tool_name": tool_name,
-            "result": tool_result,
-        }
-
-        trace = _trace_event(
-            tool_name=tool_name,
-            arguments=arguments,
-            status="success",
-            result=tool_result,
-        )
-
-        return result, trace
 
     # ------------------------------------------------------------------
     # Invalid model-generated arguments
     # ------------------------------------------------------------------
+    argument_error = _validate_arguments(tool_name, arguments)
+    if argument_error:
+        return _failure(tool_name, arguments, "TOOL_ARGUMENT_ERROR", argument_error)
+
+    tool_function = TOOL_REGISTRY[tool_name]
+    call_arguments = dict(arguments)
+    checks: list[dict[str, Any]] = []
+
+    try:
+        # --------------------------------------------------------------
+        # Drafts: recompute flags and supplier instead of trusting the model
+        # --------------------------------------------------------------
+        if tool_name == "create_requisition_draft":
+            comparison, checks = _check_draft_against_comparison(arguments)
+
+            # Flags first: with no eligible quotation there is no computed
+            # supplier, and the real reason for refusing is the policy flag.
+            blocking_flags = comparison.get("blocking_flags") or []
+            if blocking_flags:
+                return _failure(
+                    tool_name,
+                    arguments,
+                    "POLICY_BLOCKING_FLAGS",
+                    "Draft refused: the quotation comparison has unresolved blocking flags.",
+                    checks=checks,
+                    details={"blocking_flags": blocking_flags},
+                )
+
+            if any(check["mismatch"] for check in checks):
+                return _failure(
+                    tool_name,
+                    arguments,
+                    "MODEL_VALUE_MISMATCH",
+                    (
+                        "The requested supplier does not match the computed "
+                        "recommendation; the computed value is authoritative."
+                    ),
+                    checks=checks,
+                    details={"checks": checks},
+                )
+
+            call_arguments["policy_flags"] = blocking_flags
+
+        # --------------------------------------------------------------
+        # Deterministic tool execution
+        # --------------------------------------------------------------
+        tool_result = tool_function(**call_arguments)
+
     except (TypeError, ValueError) as exc:
-        error_message = str(exc)
-
-        result = {
-            "ok": False,
-            "tool_name": tool_name,
-            "error": "TOOL_ARGUMENT_ERROR",
-            "message": error_message,
-        }
-
-        trace = _trace_event(
-            tool_name=tool_name,
-            arguments=arguments,
-            status="error",
-            error=error_message,
+        return _failure(
+            tool_name, arguments, "TOOL_ARGUMENT_ERROR", str(exc), checks=checks
         )
-
-        return result, trace
 
     # ------------------------------------------------------------------
     # Unexpected deterministic-tool failure
     # ------------------------------------------------------------------
     except Exception as exc:
-        error_message = str(exc)
-
-        result = {
-            "ok": False,
-            "tool_name": tool_name,
-            "error": "TOOL_EXECUTION_ERROR",
-            "message": error_message,
-        }
-
-        trace = _trace_event(
-            tool_name=tool_name,
-            arguments=arguments,
-            status="error",
-            error=error_message,
+        return _failure(
+            tool_name, arguments, "TOOL_EXECUTION_ERROR", str(exc), checks=checks
         )
 
-        return result, trace
+    # ------------------------------------------------------------------
+    # Malformed or out-of-authority tool output
+    # ------------------------------------------------------------------
+    output_error = _validate_output(tool_name, tool_result)
+    if output_error:
+        return _failure(
+            tool_name, arguments, "TOOL_OUTPUT_INVALID", output_error, checks=checks
+        )
+
+    result = {
+        "ok": True,
+        "tool_name": tool_name,
+        "result": tool_result,
+    }
+
+    trace = _trace_event(
+        tool_name=tool_name,
+        arguments=arguments,
+        status="success",
+        result=tool_result,
+        checks=checks,
+    )
+
+    return result, trace
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +497,7 @@ def extract_function_calls(
 # ---------------------------------------------------------------------------
 # Bounded tool-using agent
 # ---------------------------------------------------------------------------
-def run_bounded_tool_agent(
+def _run_tool_loop(
     prompt: str,
     *,
     max_tool_rounds: int = 2,
@@ -511,6 +650,64 @@ def run_bounded_tool_agent(
         "trace": trace,
         "tool_rounds": max_tool_rounds,
     }
+
+
+def _write_tool_trace(
+    run_id: str,
+    prompt: str,
+    trace: list[dict[str, Any]],
+    trace_path: Path,
+) -> None:
+    """Append one JSONL line per tool call so the run leaves lasting evidence."""
+    trace_path.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).isoformat()
+    with trace_path.open("a", encoding="utf-8") as trace_file:
+        for event in trace:
+            line = {
+                "run_id": run_id,
+                "timestamp": timestamp,
+                "prompt": prompt,
+                **event,
+            }
+            trace_file.write(json.dumps(line, sort_keys=True, default=str) + "\n")
+
+
+def run_bounded_tool_agent(
+    prompt: str,
+    *,
+    max_tool_rounds: int = 2,
+    model_name: str | None = None,
+    api_key: str | None = None,
+    trace_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """
+    Run the bounded tool loop, then persist its trace.
+
+    Every tool call is appended to ``trace_path`` (default
+    ``evidence/traces/tool-calls.jsonl``), and every model-vs-computed check
+    the router ran is returned as ``model_checks``.
+    """
+    result = _run_tool_loop(
+        prompt,
+        max_tool_rounds=max_tool_rounds,
+        model_name=model_name,
+        api_key=api_key,
+    )
+
+    run_id = str(uuid.uuid4())
+    trace = result.get("trace", [])
+    _write_tool_trace(
+        run_id,
+        str(prompt),
+        trace,
+        Path(trace_path) if trace_path is not None else TOOL_TRACE_PATH,
+    )
+
+    result["run_id"] = run_id
+    result["model_checks"] = [
+        check for event in trace for check in event.get("checks", [])
+    ]
+    return result
 
 
 __all__ = [

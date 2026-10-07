@@ -4,7 +4,7 @@
 **Week:** 4 — Tools and Function Calling
 **Task:** W4-01 Tool Catalogue and Schemas
 **Owners:** Mable + Tendo
-**Status:** Contract for W4-02 implementation and W4-03 orchestration. Schemas checked against `src/tools/procurement.py` and `src/agent/tools_router.py` on 27 Sep 2026; any gap between contract and code is marked **Implementation status**.
+**Status:** Contract for W4-02 implementation and W4-03 orchestration. Schemas checked against `src/tools/procurement.py` and `src/agent/tools_router.py` on 27 Sep 2026 and again on 7 Oct 2026, after the gaps found on 27 Sep were fixed. **Implementation status** notes record what was found and how it was resolved.
 
 ## 1. Purpose
 
@@ -121,7 +121,7 @@ The implementation compares current stock with the configured reorder level and 
 
 If stock or reorder data is missing or invalid, the item is listed under `unassessable_items` with a reason, rather than given an invented yes/no answer.
 
-**Implementation status:** An item is reported only when stock is *below* the reorder level (`stock < reorder_level`). The original contract said an item *at* the reorder level must also be reordered. The team needs to decide which rule is correct and align code and contract. The input schema was made optional to match the code, which checks every item when `item_id` is omitted.
+**Implementation status (resolved 7 Oct 2026):** An item is reported only when stock is *below* the reorder level (`stock < reorder_level`). The original contract said an item *at* the reorder level must also be reordered. US-01 acceptance criterion 1 settles it: items "at or above" the reorder level must not appear, so the code is correct and this contract follows US-01. The input schema was made optional to match the code, which checks every item when `item_id` is omitted.
 
 ### Failure behaviour
 
@@ -170,11 +170,12 @@ None. Read-only access to policy.
   "type": "object",
   "properties": {
     "topic": {"type": "string"},
+    "status": {"type": "string", "enum": ["found", "no_evidence"]},
     "policy_section": {"type": "string"},
     "rule": {"type": "string"},
     "source": {"type": "string"}
   },
-  "required": ["topic", "policy_section", "rule", "source"],
+  "required": ["topic", "status", "policy_section", "rule", "source"],
   "additionalProperties": false
 }
 ```
@@ -192,7 +193,7 @@ The implementation must return policy information from the controlled procuremen
 
 The tool must not invent a policy rule when the controlled corpus does not contain enough evidence.
 
-**Implementation status: does not meet the contract.** The router maps `lookup_policy` to `policy_check()`, which takes `case_value_ugx` (not `topic`) and returns quotation-count and approval-level flags (not a policy rule and its source). The router always passes empty quotation and supplier lists, so every call reports `MINIMUM_VALID_QUOTATIONS_NOT_MET ... found=0`. A request with `topic` fails with `TOOL_ARGUMENT_ERROR`. Candidate fix: implement `lookup_policy(topic)` on top of the Week 3 retriever (`src/rag/retrieve.py`), returning the policy section, the rule text and the source path, and keep `policy_check` as an internal helper of `compare_quotations`.
+**Implementation status (fixed 7 Oct 2026):** Previously the router mapped `lookup_policy` to `policy_check()`, which took a case value instead of a topic and never read the policy. `lookup_policy(topic)` in `src/tools/policy.py` now uses the Week 3 retriever and its 0.35 threshold, accepts only chunks from the policy document, and returns the section, the rule text and the source path with `status: "found"`. When nothing clears the threshold it returns `status: "no_evidence"` with the Week 3 refusal and empty rule fields. The output also carries `score` (found) or `message` (no evidence). `policy_check` remains an internal helper of `compare_quotations`. Tests: `tests/test_week4_gap_fixes.py`.
 
 ### Failure behaviour
 
@@ -309,7 +310,7 @@ The model must not be treated as the authoritative calculator for procurement fi
 
 **Configuration note:** VAT on exclusive quotations is applied at `VAT_RATE = 0.18` in `src/tools/procurement.py`. The procurement policy itself does not state a VAT rate, so this is a code configuration value and must be kept in sync with the tax rate in force.
 
-**Implementation status:** The tie-break sorts by delivery days whenever landed cost is exactly equal. Policy §3.4 prefers the shorter lead time whenever two quotations are *within 2%* of each other. This is not yet implemented.
+**Implementation status (fixed 7 Oct 2026):** The tie-break used to apply only when landed cost was exactly equal. It now follows policy §3.4: among quotations within 2% of the lowest landed cost per base unit, the one with the shortest delivery lead time is recommended, and `recommendation_basis` says so.
 
 ### Failure behaviour
 
@@ -419,9 +420,11 @@ Any later approval must pass through the human approval workflow (W4-05).
 
 The implementation assigns a requisition number, stores the validated information with state `DRAFT`, and records an audit-log entry. It must not bypass the approval state machine.
 
-**Implementation status:**
-1. **Blocking flags are not enforced through the router.** The tool refuses to create a draft when `policy_flags` are passed, but the router schema does not expose `policy_flags`, so the model never sends them. A draft can therefore be created even when `compare_quotations` returned blocking flags (e.g. too few valid quotations). Candidate fix: the router should look up the referenced comparison's `blocking_flags` itself and pass them in, rather than relying on the model.
-2. **Drafts are written into the knowledge corpus.** The default `requisitions_path` is `knowledge/records/requisitions.csv`, which the Week 3 retriever loads as evidence. Simulated drafts would then appear in policy answers. Candidate fix: write drafts to a separate application-state file (e.g. `data/requisitions.csv`) or to `evidence/`.
+**Implementation status (both fixed 7 Oct 2026):**
+1. **Blocking flags are enforced through the router.** Before dispatch, the router re-runs `compare_quotations` for the requested item and quantity. It refuses the draft with `POLICY_BLOCKING_FLAGS` if the comparison has any blocking flags. It also compares the model's `recommended_supplier_id` with the computed one through `check_model_vs_computed()`, and refuses with `MODEL_VALUE_MISMATCH` if they differ. The flags are then passed to the tool as `policy_flags`, so the tool's own check also applies.
+2. **Drafts are written outside the knowledge corpus.** The default `requisitions_path` is now `data/requisitions.csv`, which the Week 3 loader never reads. The demo draft `REQ-2026-0002` was moved there from `knowledge/records/requisitions.csv`.
+
+**Approval state machine.** Drafts reach the W4-05 state machine through `src/workflow/requisition_store.py`. `transition_requisition()` loads a requisition, applies `submit`, `approve`, `reject` or `query`, writes it back and appends an audit event. It is not registered as a model tool, so only a person can move a requisition past `DRAFT`.
 
 ### Failure behaviour
 
@@ -454,8 +457,10 @@ The Week 4 orchestration layer must enforce this catalogue. The router must:
 4. dispatch only to registered deterministic implementations;
 5. record each tool request and result in a trace;
 6. return structured tool results to the model;
-7. prevent tools from exceeding their documented authority; and
-8. record model-versus-computed figure mismatches where applicable.
+7. prevent tools from exceeding their documented authority;
+8. record model-versus-computed figure mismatches where applicable;
+9. reject tool output that is malformed, is missing a contract field, or reports a state other than `DRAFT` from `create_requisition_draft` (`TOOL_OUTPUT_INVALID`); and
+10. append every tool call to `evidence/traces/tool-calls.jsonl`.
 
 An unrecognised tool request must not be executed dynamically. For example, the router must not execute an arbitrary function just because the model supplied its name.
 

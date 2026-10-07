@@ -9,11 +9,9 @@ Covers the four required scenarios from the brief:
   3. Unavailable service -> mocked outage; caller gets a failure response, not a hang
   4. Unexpected tool response -> malformed JSON is rejected with the failing field named
 
-Scenario 4 currently has NO enforcement in src/agent/tools_router.py -- the dispatcher
-validates the model's input arguments (TOOL_ARGUMENT_ERROR) but does not validate the
-shape of what a tool returns before handing it back. That test is written to document
-this real gap honestly, not to fake a pass. See the docstring on that test and the
-note at the bottom of this file.
+Scenario 4 was first written to document a real gap: the dispatcher did not validate
+what a tool returned. Output validation (TOOL_OUTPUT_INVALID) was added on 7 Oct 2026,
+and the scenario 4 tests now assert the rejection.
 """
 
 import unittest
@@ -89,14 +87,12 @@ class MalformedToolResponseTests(unittest.TestCase):
     Scenario 4: a malformed tool response should be rejected with the failing
     field named.
 
-    CONFIRMED GAP: dispatch_tool() currently performs no output validation at all.
-    Whatever the underlying tool function returns is passed straight back as
-    result["result"], even if it is not JSON-serializable or is missing fields a
-    downstream consumer expects. This test documents that gap by showing a
-    malformed return value passes through unflagged today.
+    Originally written to document a confirmed gap (no output validation in
+    dispatch_tool()). Output validation was added on 7 Oct 2026, so the test
+    now asserts the required behaviour: rejected with the failing field named.
     """
 
-    def test_non_serializable_tool_output_currently_passes_through_unvalidated(self):
+    def test_non_serializable_tool_output_is_rejected_with_field_named(self):
         class NotJSONSerializable:
             pass
 
@@ -106,16 +102,42 @@ class MalformedToolResponseTests(unittest.TestCase):
         with patch.dict(TOOL_REGISTRY, {"check_reorder_levels": _malformed_tool}):
             result, trace = dispatch_tool("check_reorder_levels", {"item_id": "INV-001"})
 
-        # This is the gap: result["ok"] is True even though the payload is
-        # malformed and would fail if anything downstream tried to
-        # json.dumps() it. There is no "failing field named" error today.
-        self.assertTrue(
-            result["ok"],
-            "If this assertion ever fails, it means output validation has been "
-            "added and this test should be rewritten to assert the CORRECT "
-            "rejected-with-named-field behavior instead of documenting the gap.",
-        )
-        self.assertIsInstance(result["result"]["some_field"], NotJSONSerializable)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "TOOL_OUTPUT_INVALID")
+        self.assertIn("some_field", result["message"])
+        self.assertEqual(trace["status"], "error")
+
+    def test_output_missing_a_contract_field_is_rejected(self):
+        with patch.dict(TOOL_REGISTRY, {"check_reorder_levels": lambda **kwargs: {"items_to_reorder": []}}):
+            result, _ = dispatch_tool("check_reorder_levels", {"item_id": "INV-001"})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "TOOL_OUTPUT_INVALID")
+        self.assertIn("unassessable_items", result["message"])
+
+    def test_draft_tool_returning_approved_state_is_rejected(self):
+        approved = {
+            "requisition_id": "REQ-2026-9999",
+            "state": "APPROVED",
+            "item_id": "INV-001",
+            "quantity_base": 200,
+            "recommended_supplier_id": "SUP-01",
+            "audit_log_reference": "x",
+        }
+        comparison = {"recommended_supplier_id": "SUP-01", "blocking_flags": []}
+        with patch.dict(TOOL_REGISTRY, {"create_requisition_draft": lambda **kwargs: approved}), \
+                patch("src.agent.tools_router.compare_quotations", return_value=comparison):
+            result, _ = dispatch_tool("create_requisition_draft", {
+                "item_id": "INV-001",
+                "quantity_base": 200,
+                "recommended_supplier_id": "SUP-01",
+                "comparison_reference": "ref",
+                "preparing_officer_id": "OFFICER-1",
+            })
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "TOOL_OUTPUT_INVALID")
+        self.assertIn("state", result["message"])
 
 
 if __name__ == "__main__":
