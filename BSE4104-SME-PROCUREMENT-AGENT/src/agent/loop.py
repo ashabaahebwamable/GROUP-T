@@ -15,9 +15,23 @@ Design principles:
 from __future__ import annotations
 
 from copy import deepcopy
+import os
 from typing import Any, Callable
 
-from src.agent.tools_router import TOOL_REGISTRY, dispatch_tool
+from dotenv import load_dotenv
+
+from src.agent.tools_router import dispatch_tool
+
+
+load_dotenv()
+
+DEFAULT_MAX_AGENT_ITERATIONS = 6
+DEFAULT_MAX_TOOL_RETRIES = 1
+RETRYABLE_TOOL_ERRORS = {
+    "TOOL_ARGUMENT_ERROR",
+    "TOOL_EXECUTION_ERROR",
+    "TOOL_OUTPUT_INVALID",
+}
 
 
 Planner = Callable[[dict[str, Any]], dict[str, Any]]
@@ -49,7 +63,9 @@ def initial_case_state(
         "iteration_count": 0,
         "last_error": None,
         "retry_count": 0,
+        "pending_retry": None,
         "stop_reason": None,
+        "outstanding": None,
         "preparing_officer_id": preparing_officer_id,
         "tool_history": [],
     }
@@ -98,8 +114,8 @@ def default_plan(state: dict[str, Any]) -> dict[str, Any]:
             "action": "handoff",
             "reason": "AMBIGUOUS_ITEM",
             "message": (
-                "The item to procure is missing or ambiguous. "
-                "Ask the user which inventory item is intended."
+                "Which inventory item do you mean? No item has been "
+                "selected. Please provide or confirm the intended item."
             ),
         }
 
@@ -294,6 +310,8 @@ def observe_tool_result(
     result = tool_result.get("result") or {}
 
     next_state["last_error"] = None
+    next_state["retry_count"] = 0
+    next_state["pending_retry"] = None
 
     if tool_name == "check_reorder_levels":
         next_state["reorder_result"] = deepcopy(result)
@@ -329,9 +347,8 @@ def run_agent_step(
 ) -> dict[str, Any]:
     """Execute exactly one Plan -> Act -> Observe cycle.
 
-    This function intentionally does not implement the final iteration
-    limit or retry policy. Those controls belong to the W5-03 shared
-    implementation with Azibo.
+    The step dispatches at most one tool. Run-level iteration and retry
+    enforcement is handled by :func:`run_agent`.
     """
     current_state = deepcopy(state)
 
@@ -340,12 +357,29 @@ def run_agent_step(
     if not isinstance(plan, dict):
         raise ValueError("Planner must return a dictionary.")
 
+    pending_retry = current_state.get("pending_retry")
+    if pending_retry and (
+        plan.get("action") != "tool"
+        or plan.get("tool_name") != pending_retry["tool_name"]
+    ):
+        plan = {
+            "action": "tool",
+            "tool_name": pending_retry["tool_name"],
+            "arguments": deepcopy(pending_retry["arguments"]),
+        }
+    if pending_retry:
+        current_state["pending_retry"] = None
+
     action = plan.get("action")
 
     if action == "stop":
         current_state["stop_reason"] = plan.get(
             "reason",
             "STOP_REQUESTED",
+        )
+        current_state["outstanding"] = plan.get(
+            "message",
+            "No further agent action is required.",
         )
 
         return {
@@ -359,6 +393,10 @@ def run_agent_step(
             "reason",
             "HUMAN_HANDOFF_REQUIRED",
         )
+        current_state["outstanding"] = plan.get(
+            "message",
+            "Human review is required before the case can continue.",
+        )
 
         return {
             "status": "handoff",
@@ -368,6 +406,9 @@ def run_agent_step(
 
     if action != "tool":
         current_state["stop_reason"] = "INVALID_PLAN_ACTION"
+        current_state["outstanding"] = (
+            "Correct the planner output before continuing the case."
+        )
 
         return {
             "status": "handoff",
@@ -382,42 +423,20 @@ def run_agent_step(
     tool_name = plan.get("tool_name")
     arguments = plan.get("arguments") or {}
 
-    if tool_name not in TOOL_REGISTRY:
-        current_state["stop_reason"] = "TOOL_NOT_ALLOWED"
-
-        return {
-            "status": "handoff",
-            "plan": plan,
-            "state": current_state,
-            "tool_result": {
-                "ok": False,
-                "tool_name": tool_name,
-                "error": "TOOL_NOT_ALLOWED",
-                "message": (
-                    f"Tool '{tool_name}' is not in the approved "
-                    "tool allow-list."
-                ),
-            },
-        }
-
     tool_result, trace_event = dispatch_tool(
         tool_name,
         arguments,
     )
 
+    current_state["iteration_count"] = (
+        current_state.get("iteration_count", 0) + 1
+    )
     next_state = observe_tool_result(
         current_state,
         tool_name,
         arguments,
         tool_result,
     )
-
-    if not tool_result.get("ok"):
-        next_state["stop_reason"] = (
-            "TOOL_EXECUTION_ERROR"
-            if tool_result.get("error") != "TOOL_NOT_ALLOWED"
-            else "TOOL_NOT_ALLOWED"
-        )
 
     return {
         "status": (
@@ -444,16 +463,34 @@ def run_agent(
     preparing_officer_id: str | None = None,
     planner: Planner = default_plan,
     max_steps: int | None = None,
+    max_tool_retries: int | None = None,
 ) -> dict[str, Any]:
     """Run the bounded procurement-preparation workflow.
 
-    ``max_steps`` is intentionally optional here because the final
-    team-approved iteration limit is a shared W5-03 decision owned with
-    Azibo. When supplied, this function provides a temporary caller-level
-    bound and preserves the current state when that bound is reached.
+    The iteration limit counts tool calls, including retries and blocked
+    calls. Environment defaults follow the Week 5 contract; explicit
+    arguments can override them for callers and tests.
 
     No purchase, supplier contact, payment, or approval is performed.
     """
+    if max_steps is None:
+        max_steps = _read_positive_int(
+            "MAX_AGENT_ITERATIONS",
+            DEFAULT_MAX_AGENT_ITERATIONS,
+            allow_zero=False,
+        )
+    elif max_steps < 0:
+        raise ValueError("max_steps must be zero or greater.")
+
+    if max_tool_retries is None:
+        max_tool_retries = _read_positive_int(
+            "MAX_TOOL_RETRIES",
+            DEFAULT_MAX_TOOL_RETRIES,
+            allow_zero=True,
+        )
+    elif max_tool_retries < 0:
+        raise ValueError("max_tool_retries must be zero or greater.")
+
     state = initial_case_state(
         item_id=item_id,
         quantity_base=quantity_base,
@@ -461,20 +498,23 @@ def run_agent(
         preparing_officer_id=preparing_officer_id,
     )
 
-    steps = 0
     trace: list[dict[str, Any]] = []
 
     while True:
-        if max_steps is not None and steps >= max_steps:
+        if state["iteration_count"] >= max_steps:
             state["stop_reason"] = "ITERATION_LIMIT_REACHED"
+            state["outstanding"] = _outstanding_action(state)
+            limit_message = (
+                f"The agent stopped after {state['iteration_count']} tool "
+                f"calls at the iteration limit ({max_steps}). Outstanding: "
+                f"{state['outstanding']} Case state is preserved."
+            )
 
             return {
                 "status": "handoff",
                 "reason": "ITERATION_LIMIT_REACHED",
-                "message": (
-                    "The bounded agent stopped at the configured "
-                    "iteration limit. Current case state is preserved."
-                ),
+                "message": limit_message,
+                "outstanding": state["outstanding"],
                 "state": state,
                 "trace": trace,
             }
@@ -486,12 +526,12 @@ def run_agent(
             planner=planner,
         )
 
-        steps += 1
         state = result["state"]
 
         trace.append(
             {
-                "step": steps,
+                "step": len(trace) + 1,
+                "iteration_count": state["iteration_count"],
                 "status": result["status"],
                 "plan": deepcopy(result.get("plan")),
                 "tool_result": deepcopy(
@@ -501,15 +541,106 @@ def run_agent(
             }
         )
 
-        if result["status"] in {
-            "stopped",
-            "handoff",
-            "tool_error",
-        }:
+        if result["status"] == "tool_error":
+            tool_result = result.get("tool_result") or {}
+            error_code = tool_result.get("error")
+
+            if error_code in RETRYABLE_TOOL_ERRORS:
+                if state["retry_count"] < max_tool_retries:
+                    state["retry_count"] += 1
+                    state["pending_retry"] = {
+                        "tool_name": result["plan"].get("tool_name"),
+                        "arguments": deepcopy(
+                            result["plan"].get("arguments") or {}
+                        ),
+                    }
+                    state["stop_reason"] = None
+                    trace[-1]["state_after"] = deepcopy(state)
+                    continue
+
+                state["stop_reason"] = "TOOL_FAILED_AFTER_RETRY"
+                state["outstanding"] = (
+                    f"Retry {result['plan'].get('tool_name')} later after "
+                    "the tool failure has been investigated."
+                )
+            else:
+                state["stop_reason"] = error_code or "TOOL_FAILURE"
+                state["outstanding"] = (
+                    f"Human review is required to resolve {error_code or 'the tool failure'}."
+                )
+
+            trace[-1]["state_after"] = deepcopy(state)
             return {
-                "status": result["status"],
-                "reason": state.get("stop_reason"),
+                "status": "handoff",
+                "reason": state["stop_reason"],
+                "message": state["outstanding"],
+                "outstanding": state["outstanding"],
                 "state": state,
                 "trace": trace,
                 "state_before_last_step": step_before,
             }
+
+        if result["status"] in {"stopped", "handoff"}:
+            return {
+                "status": result["status"],
+                "reason": state.get("stop_reason"),
+                "message": state.get("outstanding"),
+                "outstanding": state.get("outstanding"),
+                "state": state,
+                "trace": trace,
+                "state_before_last_step": step_before,
+            }
+
+
+def _read_positive_int(
+    name: str,
+    default: int,
+    *,
+    allow_zero: bool,
+) -> int:
+    """Read and validate an integer limit from the environment."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer.") from exc
+
+    minimum = 0 if allow_zero else 1
+    if value < minimum:
+        qualifier = "zero or greater" if allow_zero else "greater than zero"
+        raise ValueError(f"{name} must be {qualifier}.")
+
+    return value
+
+
+def _outstanding_action(state: dict[str, Any]) -> str:
+    """Describe the next required action without changing preserved state."""
+    pending_retry = state.get("pending_retry")
+    if pending_retry:
+        return (
+            f"Retry {pending_retry['tool_name']} when the tool is available."
+        )
+
+    item_id = (state.get("item") or {}).get("item_id")
+    if not item_id:
+        return "Identify the intended inventory item; none has been selected."
+
+    if state.get("reorder_result") is None:
+        return f"Check the reorder status for inventory item {item_id}."
+
+    if state.get("quantity") is None:
+        return "Confirm the requested reorder quantity and unit."
+
+    if state.get("comparison_result") is None:
+        return f"Compare quotations for inventory item {item_id}."
+
+    if state.get("blocking_flags"):
+        return "Resolve the blocking procurement-policy flags."
+
+    if not state.get("draft_id"):
+        return f"Continue requisition preparation for inventory item {item_id}."
+
+    return f"Have an officer review draft {state['draft_id']} and submit it."

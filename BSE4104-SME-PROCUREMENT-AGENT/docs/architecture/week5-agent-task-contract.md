@@ -45,7 +45,9 @@ The agent does not reach that state by itself. Two steps belong to the officer (
 | Headroom | 6 leaves room for one retry (`MAX_TOOL_RETRIES=1`, US-11 criterion 2) without allowing a second loop over the same work. |
 | Resuming after a hand-off | A resumed run starts a new count of 6. The case state carries over; the counter does not. |
 | Model-call budget | Each tool call needs a model turn, so one full case uses about 7–9 Gemini requests. The free tier allows 20 a day, about two full cases. That is enough for the three Week 5 traces only if runs are planned. |
-| Already configured | `.env.example` has `MAX_AGENT_ITERATIONS=6` and `MAX_TOOL_RETRIES=1`. Neither is read by the code yet (section 8). |
+| Configuration | `.env.example` sets `MAX_AGENT_ITERATIONS=6` and `MAX_TOOL_RETRIES=1`; `src.agent.loop.run_agent` reads these values and allows explicit caller overrides. |
+
+`run_agent` counts each router-dispatched call, including blocked calls and retries, in the preserved `iteration_count`. It retries `TOOL_ARGUMENT_ERROR`, `TOOL_EXECUTION_ERROR` and `TOOL_OUTPUT_INVALID` once by default, then hands off with the error and next action outstanding. This enforcement applies to `run_agent`; the earlier model-facing `run_bounded_tool_agent` remains a separate entry point.
 
 The charter and project definition still say "[PLACEHOLDER: proposed 6]", and there is no Week 2 sign-off for it in the repository. Once Tendo agrees, this section is the sign-off, and both placeholders are replaced with 6.
 
@@ -125,8 +127,8 @@ Restated from the brief and the AI boundary matrix. "Status" records whether the
 ## 9. Decisions and gaps for Tendo to confirm
 
 1. **Iteration limit of 6 tool calls, 1 retry** (section 2). Agree, then remove the placeholders in `project-charter.md` and `project-definition.md`.
-2. **The loop counts model rounds, not tool calls.** `run_bounded_tool_agent` uses `max_tool_rounds=2`, and one round can contain several tool calls. It needs to count tool calls and read `MAX_AGENT_ITERATIONS` and `MAX_TOOL_RETRIES` from the environment.
+2. **The model-facing loop still counts rounds, not tool calls.** `run_bounded_tool_agent` uses `max_tool_rounds=2`, and one round can contain several tool calls. The deterministic `run_agent` in `src.agent.loop` now enforces the configured tool-call limit and single retry; the model-facing entry point still needs the same controls.
 3. **Hand-off H1 is missing.** The router will create a draft without an officer-confirmed supplier. `create_requisition_draft` should require a confirmed-supplier record from H1.
-4. **A blocked tool request does not stop the run** (S3). Today the error is returned to the model and the loop continues.
-5. **No retry logic and no hand-off package.** Errors go back to the model with no retry count, and the result has no stop code or saved case state.
+4. **A blocked tool request does not stop the model-facing run** (S3). `run_agent` stops and hands off after its router blocks a call; `run_bounded_tool_agent` still returns the error to the model and continues.
+5. **The model-facing loop has no retry logic or hand-off package.** `run_agent` tracks retry count, preserves its case state and reports the outstanding action; the model-facing entry point still needs this behaviour.
 6. **Role check for approval** (US-09) is not built. This sits with Isaac's state-machine review.
