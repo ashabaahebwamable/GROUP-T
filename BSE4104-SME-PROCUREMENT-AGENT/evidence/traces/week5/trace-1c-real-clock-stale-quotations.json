@@ -1,0 +1,261 @@
+{
+  "trace_id": "W5-04-trace-1c",
+  "title": "Supplementary: the Trace 1 case on the real clock stops at S4",
+  "generated_utc": "2026-10-10T11:01:29+00:00",
+  "scenario": "Identical inputs to Trace 1 with no date pinning. The synthetic quotations have passed their validity windows, so the comparison returns blocking flags and the loop correctly refuses to draft.",
+  "contract_codes": [
+    "S4 (policy override needed)"
+  ],
+  "inputs": {
+    "item_id": "INV-003",
+    "quantity_base": 460,
+    "unit": "piece",
+    "preparing_officer_id": "officer-ashley"
+  },
+  "environment": {
+    "planner": "default_plan (deterministic rules; no model call, no API quota used)",
+    "clock": "real system clock (no pinning)",
+    "writes": "requisition drafts and audit events written to a temporary copy only"
+  },
+  "outcome": {
+    "status": "handoff",
+    "reason": "POLICY_BLOCKING_FLAGS",
+    "message": "The quotation comparison produced blocking policy or eligibility flags. Human review is required.",
+    "tool_calls_used": 2,
+    "retries_used": 0,
+    "tools_called": [
+      "check_reorder_levels",
+      "compare_quotations"
+    ]
+  },
+  "steps": [
+    {
+      "step": 1,
+      "plan": {
+        "action": "tool",
+        "tool_name": "check_reorder_levels",
+        "arguments": {
+          "item_id": "INV-003"
+        }
+      },
+      "status": "continue",
+      "tool_result": {
+        "ok": true,
+        "tool_name": "check_reorder_levels",
+        "result": {
+          "items_to_reorder": [
+            {
+              "item_id": "INV-003",
+              "item_name": "Deformed reinforcement bar Y12",
+              "current_stock_base": 140.0,
+              "reorder_level_base": 200.0,
+              "target_stock_base": 600.0,
+              "suggested_reorder_quantity_base": 460.0
+            }
+          ],
+          "unassessable_items": []
+        }
+      },
+      "counters_after_step": {
+        "iteration_count": 1,
+        "retry_count": 0,
+        "pending_retry": null,
+        "last_error": null,
+        "stop_reason": null
+      }
+    },
+    {
+      "step": 2,
+      "plan": {
+        "action": "tool",
+        "tool_name": "compare_quotations",
+        "arguments": {
+          "item_id": "INV-003",
+          "quantity_base": 460
+        }
+      },
+      "status": "continue",
+      "tool_result": {
+        "ok": true,
+        "tool_name": "compare_quotations",
+        "result": {
+          "item_id": "INV-003",
+          "quantity_base": 460.0,
+          "quotations_considered": [
+            {
+              "quotation_id": "QUO-1005",
+              "supplier_id": "SUP-03",
+              "valid": false,
+              "excluded": false,
+              "complete": true,
+              "eligible": false,
+              "supplier_name": "Bweyogerere Steel Depot",
+              "delivery_days": null
+            },
+            {
+              "quotation_id": "QUO-1006",
+              "supplier_id": "SUP-06",
+              "valid": false,
+              "excluded": false,
+              "complete": true,
+              "eligible": false,
+              "supplier_name": "Ntinda Trade Stores",
+              "delivery_days": null
+            },
+            {
+              "quotation_id": "QUO-1007",
+              "supplier_id": "SUP-01",
+              "valid": false,
+              "excluded": false,
+              "complete": true,
+              "eligible": false,
+              "supplier_name": "Nakawa Building Supplies",
+              "delivery_days": null
+            }
+          ],
+          "ranked_quotations": [],
+          "recommended_supplier_id": null,
+          "recommendation_basis": "lowest computed landed cost per base unit",
+          "blocking_flags": [
+            "EXPIRED_OR_INVALID_QUOTATION:QUO-1005",
+            "EXPIRED_OR_INVALID_QUOTATION:QUO-1006",
+            "EXPIRED_OR_INVALID_QUOTATION:QUO-1007",
+            "MINIMUM_VALID_QUOTATIONS_NOT_MET:required=2:found=0"
+          ],
+          "approval_level": "operations_manager",
+          "minimum_valid_quotations_required": 2
+        }
+      },
+      "counters_after_step": {
+        "iteration_count": 2,
+        "retry_count": 0,
+        "pending_retry": null,
+        "last_error": null,
+        "stop_reason": null
+      }
+    },
+    {
+      "step": 3,
+      "plan": {
+        "action": "handoff",
+        "reason": "POLICY_BLOCKING_FLAGS",
+        "message": "The quotation comparison produced blocking policy or eligibility flags. Human review is required."
+      },
+      "status": "handoff",
+      "tool_result": null,
+      "counters_after_step": {
+        "iteration_count": 2,
+        "retry_count": 0,
+        "pending_retry": null,
+        "last_error": null,
+        "stop_reason": "POLICY_BLOCKING_FLAGS"
+      }
+    }
+  ],
+  "final_state": {
+    "item": {
+      "item_id": "INV-003"
+    },
+    "quantity": 460,
+    "unit": "piece",
+    "comparison_result": {
+      "item_id": "INV-003",
+      "quantity_base": 460.0,
+      "quotations_considered": [
+        {
+          "quotation_id": "QUO-1005",
+          "supplier_id": "SUP-03",
+          "valid": false,
+          "excluded": false,
+          "complete": true,
+          "eligible": false,
+          "supplier_name": "Bweyogerere Steel Depot",
+          "delivery_days": null
+        },
+        {
+          "quotation_id": "QUO-1006",
+          "supplier_id": "SUP-06",
+          "valid": false,
+          "excluded": false,
+          "complete": true,
+          "eligible": false,
+          "supplier_name": "Ntinda Trade Stores",
+          "delivery_days": null
+        },
+        {
+          "quotation_id": "QUO-1007",
+          "supplier_id": "SUP-01",
+          "valid": false,
+          "excluded": false,
+          "complete": true,
+          "eligible": false,
+          "supplier_name": "Nakawa Building Supplies",
+          "delivery_days": null
+        }
+      ],
+      "ranked_quotations": [],
+      "recommended_supplier_id": null,
+      "recommendation_basis": "lowest computed landed cost per base unit",
+      "blocking_flags": [
+        "EXPIRED_OR_INVALID_QUOTATION:QUO-1005",
+        "EXPIRED_OR_INVALID_QUOTATION:QUO-1006",
+        "EXPIRED_OR_INVALID_QUOTATION:QUO-1007",
+        "MINIMUM_VALID_QUOTATIONS_NOT_MET:required=2:found=0"
+      ],
+      "approval_level": "operations_manager",
+      "minimum_valid_quotations_required": 2
+    },
+    "blocking_flags": [
+      "EXPIRED_OR_INVALID_QUOTATION:QUO-1005",
+      "EXPIRED_OR_INVALID_QUOTATION:QUO-1006",
+      "EXPIRED_OR_INVALID_QUOTATION:QUO-1007",
+      "MINIMUM_VALID_QUOTATIONS_NOT_MET:required=2:found=0"
+    ],
+    "draft_id": null,
+    "iteration_count": 2,
+    "last_error": null,
+    "retry_count": 0,
+    "pending_retry": null,
+    "stop_reason": "POLICY_BLOCKING_FLAGS",
+    "outstanding": "The quotation comparison produced blocking policy or eligibility flags. Human review is required.",
+    "preparing_officer_id": "officer-ashley",
+    "reorder_result": {
+      "items_to_reorder": [
+        {
+          "item_id": "INV-003",
+          "item_name": "Deformed reinforcement bar Y12",
+          "current_stock_base": 140.0,
+          "reorder_level_base": 200.0,
+          "target_stock_base": 600.0,
+          "suggested_reorder_quantity_base": 460.0
+        }
+      ],
+      "unassessable_items": []
+    },
+    "tool_history": [
+      {
+        "tool_name": "check_reorder_levels",
+        "arguments": {
+          "item_id": "INV-003"
+        },
+        "ok": true,
+        "error": null
+      },
+      {
+        "tool_name": "compare_quotations",
+        "arguments": {
+          "item_id": "INV-003",
+          "quantity_base": 460
+        },
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "observations": [
+    "The loop behaved correctly: with too few valid quotations it handed off with POLICY_BLOCKING_FLAGS instead of drafting.",
+    "FINDING (data staleness): every quotation in knowledge/records/quotations.csv is dated 20-28 Aug 2026 with 7-30 days of validity, so none (0 of 10) is valid on the real date. No end-to-end run through the router can succeed on today's clock.",
+    "FINDING: the router's draft pre-check calls compare_quotations without an as_of_date, so a caller cannot pin the date through the router; Week 7 evaluation scenarios will need refreshed quotation dates or a way to supply an as-of date.",
+    "FINDING (coverage): only 4 of the 15 inventory items (INV-001, 003, 005, 006) have any quotation, so most reorder signals can never get past compare_quotations."
+  ]
+}
