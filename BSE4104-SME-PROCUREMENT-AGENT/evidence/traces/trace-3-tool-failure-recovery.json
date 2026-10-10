@@ -1,0 +1,894 @@
+{
+  "trace_id": "W5-04-trace-3",
+  "title": "Induced tool failure -> retry once -> safe hand-off -> recovery",
+  "generated_utc": "2026-10-10T11:01:29+00:00",
+  "scenario": "check_reorder_levels is made unavailable with a mock outage (ConnectionError). Shown three ways: a persistent outage that exhausts the single retry, the tool coming back, and a transient outage that the retry survives.",
+  "contract_codes": [
+    "S2 (tool failed twice)"
+  ],
+  "inputs": {
+    "item_id": "INV-003",
+    "quantity_base": 460,
+    "unit": "piece",
+    "preparing_officer_id": "officer-ashley"
+  },
+  "environment": {
+    "planner": "default_plan (deterministic rules; no model call, no API quota used)",
+    "clock": "compare_quotations pinned to as_of_date=2026-08-27",
+    "writes": "requisition drafts and audit events written to a temporary copy only",
+    "outage": "check_reorder_levels replaced by a mock that raises ConnectionError('Simulated outage: inventory service unreachable')"
+  },
+  "phases": [
+    {
+      "phase": "A - persistent outage",
+      "description": "The tool fails, is retried once, fails again, and the loop hands off.",
+      "outcome": {
+        "status": "handoff",
+        "reason": "TOOL_FAILED_AFTER_RETRY",
+        "message": "Retry check_reorder_levels later after the tool failure has been investigated.",
+        "tool_calls_used": 2,
+        "retries_used": 1,
+        "tools_called": [
+          "check_reorder_levels",
+          "check_reorder_levels"
+        ]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "plan": {
+            "action": "tool",
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            }
+          },
+          "status": "tool_error",
+          "tool_result": {
+            "ok": false,
+            "tool_name": "check_reorder_levels",
+            "error": "TOOL_EXECUTION_ERROR",
+            "message": "Simulated outage: inventory service unreachable"
+          },
+          "counters_after_step": {
+            "iteration_count": 1,
+            "retry_count": 1,
+            "pending_retry": {
+              "tool_name": "check_reorder_levels",
+              "arguments": {
+                "item_id": "INV-003"
+              }
+            },
+            "last_error": "Simulated outage: inventory service unreachable",
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 2,
+          "plan": {
+            "action": "tool",
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            }
+          },
+          "status": "tool_error",
+          "tool_result": {
+            "ok": false,
+            "tool_name": "check_reorder_levels",
+            "error": "TOOL_EXECUTION_ERROR",
+            "message": "Simulated outage: inventory service unreachable"
+          },
+          "counters_after_step": {
+            "iteration_count": 2,
+            "retry_count": 1,
+            "pending_retry": null,
+            "last_error": "Simulated outage: inventory service unreachable",
+            "stop_reason": "TOOL_FAILED_AFTER_RETRY"
+          }
+        }
+      ],
+      "final_state": {
+        "item": {
+          "item_id": "INV-003"
+        },
+        "quantity": 460,
+        "unit": "piece",
+        "comparison_result": null,
+        "blocking_flags": [],
+        "draft_id": null,
+        "iteration_count": 2,
+        "last_error": "Simulated outage: inventory service unreachable",
+        "retry_count": 1,
+        "pending_retry": null,
+        "stop_reason": "TOOL_FAILED_AFTER_RETRY",
+        "outstanding": "Retry check_reorder_levels later after the tool failure has been investigated.",
+        "preparing_officer_id": "officer-ashley",
+        "tool_history": [
+          {
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            },
+            "ok": false,
+            "error": "TOOL_EXECUTION_ERROR"
+          },
+          {
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            },
+            "ok": false,
+            "error": "TOOL_EXECUTION_ERROR"
+          }
+        ]
+      },
+      "observations": [
+        "The failing tool was called 2 times: one attempt and exactly one retry (MAX_TOOL_RETRIES=1), not an open-ended loop.",
+        "Stopped with TOOL_FAILED_AFTER_RETRY and an outstanding action that names the tool. The failure was reported, not hidden (matrix row 18).",
+        "No later tool ran and nothing was invented for the missing result: no reorder result was recorded in the case state.",
+        "The caller got a failure response straight away; nothing hung."
+      ]
+    },
+    {
+      "phase": "B - the tool returns (recovery)",
+      "description": "With the outage cleared, the same request is run again.",
+      "outcome": {
+        "status": "handoff",
+        "reason": "READY_FOR_HUMAN_APPROVAL",
+        "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
+        "tool_calls_used": 3,
+        "retries_used": 0,
+        "tools_called": [
+          "check_reorder_levels",
+          "compare_quotations",
+          "create_requisition_draft"
+        ]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "plan": {
+            "action": "tool",
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "check_reorder_levels",
+            "result": {
+              "items_to_reorder": [
+                {
+                  "item_id": "INV-003",
+                  "item_name": "Deformed reinforcement bar Y12",
+                  "current_stock_base": 140.0,
+                  "reorder_level_base": 200.0,
+                  "target_stock_base": 600.0,
+                  "suggested_reorder_quantity_base": 460.0
+                }
+              ],
+              "unassessable_items": []
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 1,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 2,
+          "plan": {
+            "action": "tool",
+            "tool_name": "compare_quotations",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "compare_quotations",
+            "result": {
+              "item_id": "INV-003",
+              "quantity_base": 460.0,
+              "quotations_considered": [
+                {
+                  "quotation_id": "QUO-1005",
+                  "supplier_id": "SUP-03",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Bweyogerere Steel Depot",
+                  "delivery_days": 5,
+                  "landed_cost_total": 26900000.0,
+                  "landed_cost_per_base_unit": 58478.26
+                },
+                {
+                  "quotation_id": "QUO-1006",
+                  "supplier_id": "SUP-06",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Ntinda Trade Stores",
+                  "delivery_days": 6,
+                  "landed_cost_total": 28290000.0,
+                  "landed_cost_per_base_unit": 61500.0
+                },
+                {
+                  "quotation_id": "QUO-1007",
+                  "supplier_id": "SUP-01",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Nakawa Building Supplies",
+                  "delivery_days": 4,
+                  "landed_cost_total": 32568000.0,
+                  "landed_cost_per_base_unit": 70800.0
+                }
+              ],
+              "ranked_quotations": [
+                {
+                  "quotation_id": "QUO-1005",
+                  "supplier_id": "SUP-03",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Bweyogerere Steel Depot",
+                  "delivery_days": 5,
+                  "landed_cost_total": 26900000.0,
+                  "landed_cost_per_base_unit": 58478.26
+                },
+                {
+                  "quotation_id": "QUO-1006",
+                  "supplier_id": "SUP-06",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Ntinda Trade Stores",
+                  "delivery_days": 6,
+                  "landed_cost_total": 28290000.0,
+                  "landed_cost_per_base_unit": 61500.0
+                },
+                {
+                  "quotation_id": "QUO-1007",
+                  "supplier_id": "SUP-01",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Nakawa Building Supplies",
+                  "delivery_days": 4,
+                  "landed_cost_total": 32568000.0,
+                  "landed_cost_per_base_unit": 70800.0
+                }
+              ],
+              "recommended_supplier_id": "SUP-03",
+              "recommendation_basis": "lowest computed landed cost per base unit",
+              "blocking_flags": [],
+              "approval_level": "director",
+              "minimum_valid_quotations_required": 3
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 2,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 3,
+          "plan": {
+            "action": "tool",
+            "tool_name": "create_requisition_draft",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460,
+              "recommended_supplier_id": "SUP-03",
+              "comparison_reference": "comparison:INV-003",
+              "preparing_officer_id": "officer-ashley"
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "create_requisition_draft",
+            "result": {
+              "requisition_id": "REQ-2026-0003",
+              "state": "DRAFT",
+              "item_id": "INV-003",
+              "quantity_base": 460.0,
+              "recommended_supplier_id": "SUP-03",
+              "audit_log_reference": "(temporary audit log, discarded after the run)#551c589e-2812-484d-b278-044d75d6e4dc"
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 3,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 4,
+          "plan": {
+            "action": "handoff",
+            "reason": "READY_FOR_HUMAN_APPROVAL",
+            "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically."
+          },
+          "status": "handoff",
+          "tool_result": null,
+          "counters_after_step": {
+            "iteration_count": 3,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": "READY_FOR_HUMAN_APPROVAL"
+          }
+        }
+      ],
+      "final_state": {
+        "item": {
+          "item_id": "INV-003"
+        },
+        "quantity": 460,
+        "unit": "piece",
+        "comparison_result": {
+          "item_id": "INV-003",
+          "quantity_base": 460.0,
+          "quotations_considered": [
+            {
+              "quotation_id": "QUO-1005",
+              "supplier_id": "SUP-03",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Bweyogerere Steel Depot",
+              "delivery_days": 5,
+              "landed_cost_total": 26900000.0,
+              "landed_cost_per_base_unit": 58478.26
+            },
+            {
+              "quotation_id": "QUO-1006",
+              "supplier_id": "SUP-06",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Ntinda Trade Stores",
+              "delivery_days": 6,
+              "landed_cost_total": 28290000.0,
+              "landed_cost_per_base_unit": 61500.0
+            },
+            {
+              "quotation_id": "QUO-1007",
+              "supplier_id": "SUP-01",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Nakawa Building Supplies",
+              "delivery_days": 4,
+              "landed_cost_total": 32568000.0,
+              "landed_cost_per_base_unit": 70800.0
+            }
+          ],
+          "ranked_quotations": [
+            {
+              "quotation_id": "QUO-1005",
+              "supplier_id": "SUP-03",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Bweyogerere Steel Depot",
+              "delivery_days": 5,
+              "landed_cost_total": 26900000.0,
+              "landed_cost_per_base_unit": 58478.26
+            },
+            {
+              "quotation_id": "QUO-1006",
+              "supplier_id": "SUP-06",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Ntinda Trade Stores",
+              "delivery_days": 6,
+              "landed_cost_total": 28290000.0,
+              "landed_cost_per_base_unit": 61500.0
+            },
+            {
+              "quotation_id": "QUO-1007",
+              "supplier_id": "SUP-01",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Nakawa Building Supplies",
+              "delivery_days": 4,
+              "landed_cost_total": 32568000.0,
+              "landed_cost_per_base_unit": 70800.0
+            }
+          ],
+          "recommended_supplier_id": "SUP-03",
+          "recommendation_basis": "lowest computed landed cost per base unit",
+          "blocking_flags": [],
+          "approval_level": "director",
+          "minimum_valid_quotations_required": 3
+        },
+        "blocking_flags": [],
+        "draft_id": "REQ-2026-0003",
+        "iteration_count": 3,
+        "last_error": null,
+        "retry_count": 0,
+        "pending_retry": null,
+        "stop_reason": "READY_FOR_HUMAN_APPROVAL",
+        "outstanding": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
+        "preparing_officer_id": "officer-ashley",
+        "reorder_result": {
+          "items_to_reorder": [
+            {
+              "item_id": "INV-003",
+              "item_name": "Deformed reinforcement bar Y12",
+              "current_stock_base": 140.0,
+              "reorder_level_base": 200.0,
+              "target_stock_base": 600.0,
+              "suggested_reorder_quantity_base": 460.0
+            }
+          ],
+          "unassessable_items": []
+        },
+        "tool_history": [
+          {
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "compare_quotations",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "create_requisition_draft",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460,
+              "recommended_supplier_id": "SUP-03",
+              "comparison_reference": "comparison:INV-003",
+              "preparing_officer_id": "officer-ashley"
+            },
+            "ok": true,
+            "error": null
+          }
+        ]
+      },
+      "observations": [
+        "Recovered: the run completed through to the draft and a hand-off.",
+        "FINDING: this is a fresh run, not a resume. run_agent has no parameter that accepts the saved case state (it always builds a new one), so the preserved state from phase A cannot be handed back. Contract section 2 says a resumed run carries state over; only the lower-level run_agent_step accepts a state today."
+      ]
+    },
+    {
+      "phase": "C - transient outage",
+      "description": "The tool fails once, then answers on the retry.",
+      "outcome": {
+        "status": "handoff",
+        "reason": "READY_FOR_HUMAN_APPROVAL",
+        "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
+        "tool_calls_used": 4,
+        "retries_used": 1,
+        "tools_called": [
+          "check_reorder_levels",
+          "check_reorder_levels",
+          "compare_quotations",
+          "create_requisition_draft"
+        ]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "plan": {
+            "action": "tool",
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            }
+          },
+          "status": "tool_error",
+          "tool_result": {
+            "ok": false,
+            "tool_name": "check_reorder_levels",
+            "error": "TOOL_EXECUTION_ERROR",
+            "message": "Simulated outage: inventory service unreachable"
+          },
+          "counters_after_step": {
+            "iteration_count": 1,
+            "retry_count": 1,
+            "pending_retry": {
+              "tool_name": "check_reorder_levels",
+              "arguments": {
+                "item_id": "INV-003"
+              }
+            },
+            "last_error": "Simulated outage: inventory service unreachable",
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 2,
+          "plan": {
+            "action": "tool",
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "check_reorder_levels",
+            "result": {
+              "items_to_reorder": [
+                {
+                  "item_id": "INV-003",
+                  "item_name": "Deformed reinforcement bar Y12",
+                  "current_stock_base": 140.0,
+                  "reorder_level_base": 200.0,
+                  "target_stock_base": 600.0,
+                  "suggested_reorder_quantity_base": 460.0
+                }
+              ],
+              "unassessable_items": []
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 2,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 3,
+          "plan": {
+            "action": "tool",
+            "tool_name": "compare_quotations",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "compare_quotations",
+            "result": {
+              "item_id": "INV-003",
+              "quantity_base": 460.0,
+              "quotations_considered": [
+                {
+                  "quotation_id": "QUO-1005",
+                  "supplier_id": "SUP-03",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Bweyogerere Steel Depot",
+                  "delivery_days": 5,
+                  "landed_cost_total": 26900000.0,
+                  "landed_cost_per_base_unit": 58478.26
+                },
+                {
+                  "quotation_id": "QUO-1006",
+                  "supplier_id": "SUP-06",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Ntinda Trade Stores",
+                  "delivery_days": 6,
+                  "landed_cost_total": 28290000.0,
+                  "landed_cost_per_base_unit": 61500.0
+                },
+                {
+                  "quotation_id": "QUO-1007",
+                  "supplier_id": "SUP-01",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Nakawa Building Supplies",
+                  "delivery_days": 4,
+                  "landed_cost_total": 32568000.0,
+                  "landed_cost_per_base_unit": 70800.0
+                }
+              ],
+              "ranked_quotations": [
+                {
+                  "quotation_id": "QUO-1005",
+                  "supplier_id": "SUP-03",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Bweyogerere Steel Depot",
+                  "delivery_days": 5,
+                  "landed_cost_total": 26900000.0,
+                  "landed_cost_per_base_unit": 58478.26
+                },
+                {
+                  "quotation_id": "QUO-1006",
+                  "supplier_id": "SUP-06",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Ntinda Trade Stores",
+                  "delivery_days": 6,
+                  "landed_cost_total": 28290000.0,
+                  "landed_cost_per_base_unit": 61500.0
+                },
+                {
+                  "quotation_id": "QUO-1007",
+                  "supplier_id": "SUP-01",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Nakawa Building Supplies",
+                  "delivery_days": 4,
+                  "landed_cost_total": 32568000.0,
+                  "landed_cost_per_base_unit": 70800.0
+                }
+              ],
+              "recommended_supplier_id": "SUP-03",
+              "recommendation_basis": "lowest computed landed cost per base unit",
+              "blocking_flags": [],
+              "approval_level": "director",
+              "minimum_valid_quotations_required": 3
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 3,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 4,
+          "plan": {
+            "action": "tool",
+            "tool_name": "create_requisition_draft",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460,
+              "recommended_supplier_id": "SUP-03",
+              "comparison_reference": "comparison:INV-003",
+              "preparing_officer_id": "officer-ashley"
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "create_requisition_draft",
+            "result": {
+              "requisition_id": "REQ-2026-0003",
+              "state": "DRAFT",
+              "item_id": "INV-003",
+              "quantity_base": 460.0,
+              "recommended_supplier_id": "SUP-03",
+              "audit_log_reference": "(temporary audit log, discarded after the run)#092530ac-a7ce-4daa-beaa-e6f5805b1df7"
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 4,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 5,
+          "plan": {
+            "action": "handoff",
+            "reason": "READY_FOR_HUMAN_APPROVAL",
+            "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically."
+          },
+          "status": "handoff",
+          "tool_result": null,
+          "counters_after_step": {
+            "iteration_count": 4,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": "READY_FOR_HUMAN_APPROVAL"
+          }
+        }
+      ],
+      "final_state": {
+        "item": {
+          "item_id": "INV-003"
+        },
+        "quantity": 460,
+        "unit": "piece",
+        "comparison_result": {
+          "item_id": "INV-003",
+          "quantity_base": 460.0,
+          "quotations_considered": [
+            {
+              "quotation_id": "QUO-1005",
+              "supplier_id": "SUP-03",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Bweyogerere Steel Depot",
+              "delivery_days": 5,
+              "landed_cost_total": 26900000.0,
+              "landed_cost_per_base_unit": 58478.26
+            },
+            {
+              "quotation_id": "QUO-1006",
+              "supplier_id": "SUP-06",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Ntinda Trade Stores",
+              "delivery_days": 6,
+              "landed_cost_total": 28290000.0,
+              "landed_cost_per_base_unit": 61500.0
+            },
+            {
+              "quotation_id": "QUO-1007",
+              "supplier_id": "SUP-01",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Nakawa Building Supplies",
+              "delivery_days": 4,
+              "landed_cost_total": 32568000.0,
+              "landed_cost_per_base_unit": 70800.0
+            }
+          ],
+          "ranked_quotations": [
+            {
+              "quotation_id": "QUO-1005",
+              "supplier_id": "SUP-03",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Bweyogerere Steel Depot",
+              "delivery_days": 5,
+              "landed_cost_total": 26900000.0,
+              "landed_cost_per_base_unit": 58478.26
+            },
+            {
+              "quotation_id": "QUO-1006",
+              "supplier_id": "SUP-06",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Ntinda Trade Stores",
+              "delivery_days": 6,
+              "landed_cost_total": 28290000.0,
+              "landed_cost_per_base_unit": 61500.0
+            },
+            {
+              "quotation_id": "QUO-1007",
+              "supplier_id": "SUP-01",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Nakawa Building Supplies",
+              "delivery_days": 4,
+              "landed_cost_total": 32568000.0,
+              "landed_cost_per_base_unit": 70800.0
+            }
+          ],
+          "recommended_supplier_id": "SUP-03",
+          "recommendation_basis": "lowest computed landed cost per base unit",
+          "blocking_flags": [],
+          "approval_level": "director",
+          "minimum_valid_quotations_required": 3
+        },
+        "blocking_flags": [],
+        "draft_id": "REQ-2026-0003",
+        "iteration_count": 4,
+        "last_error": null,
+        "retry_count": 0,
+        "pending_retry": null,
+        "stop_reason": "READY_FOR_HUMAN_APPROVAL",
+        "outstanding": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
+        "preparing_officer_id": "officer-ashley",
+        "reorder_result": {
+          "items_to_reorder": [
+            {
+              "item_id": "INV-003",
+              "item_name": "Deformed reinforcement bar Y12",
+              "current_stock_base": 140.0,
+              "reorder_level_base": 200.0,
+              "target_stock_base": 600.0,
+              "suggested_reorder_quantity_base": 460.0
+            }
+          ],
+          "unassessable_items": []
+        },
+        "tool_history": [
+          {
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            },
+            "ok": false,
+            "error": "TOOL_EXECUTION_ERROR"
+          },
+          {
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "compare_quotations",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "create_requisition_draft",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460,
+              "recommended_supplier_id": "SUP-03",
+              "comparison_reference": "comparison:INV-003",
+              "preparing_officer_id": "officer-ashley"
+            },
+            "ok": true,
+            "error": null
+          }
+        ]
+      },
+      "observations": [
+        "The tool was called 2 times for its first step: one failure, then a successful retry.",
+        "On success the retry counter reset to 0 and the run carried on to the hand-off without needing a human."
+      ]
+    }
+  ]
+}

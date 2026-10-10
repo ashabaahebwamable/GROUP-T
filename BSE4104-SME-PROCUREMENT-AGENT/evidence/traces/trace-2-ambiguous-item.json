@@ -1,0 +1,73 @@
+{
+  "trace_id": "W5-04-trace-2",
+  "title": "Ambiguous item description -> hand-back to the officer",
+  "generated_utc": "2026-10-10T11:01:29+00:00",
+  "scenario": "The officer asks to reorder 'Portland cement'. That matches more than one inventory item, so no item_id is resolved. The loop must ask which item is meant and select none itself.",
+  "contract_codes": [
+    "S5 (required input missing or ambiguous)"
+  ],
+  "inputs": {
+    "officer_free_text": "Portland cement",
+    "candidate_items_matching_text": [
+      "INV-001",
+      "INV-002"
+    ],
+    "item_id_passed_to_loop": null,
+    "quantity_base": 10000
+  },
+  "environment": {
+    "planner": "default_plan (deterministic rules; no model call, no API quota used)",
+    "clock": "compare_quotations pinned to as_of_date=2026-09-01",
+    "writes": "requisition drafts and audit events written to a temporary copy only",
+    "note": "The description-to-candidates match above is done by this generator (simple substring match), not by run_agent. run_agent receives item_id=None, which is what an unresolved match looks like."
+  },
+  "outcome": {
+    "status": "handoff",
+    "reason": "AMBIGUOUS_ITEM",
+    "message": "Which inventory item do you mean? No item has been selected. Please provide or confirm the intended item.",
+    "tool_calls_used": 0,
+    "retries_used": 0,
+    "tools_called": []
+  },
+  "steps": [
+    {
+      "step": 1,
+      "plan": {
+        "action": "handoff",
+        "reason": "AMBIGUOUS_ITEM",
+        "message": "Which inventory item do you mean? No item has been selected. Please provide or confirm the intended item."
+      },
+      "status": "handoff",
+      "tool_result": null,
+      "counters_after_step": {
+        "iteration_count": 0,
+        "retry_count": 0,
+        "pending_retry": null,
+        "last_error": null,
+        "stop_reason": "AMBIGUOUS_ITEM"
+      }
+    }
+  ],
+  "final_state": {
+    "item": null,
+    "quantity": 10000,
+    "unit": "kg",
+    "comparison_result": null,
+    "blocking_flags": [],
+    "draft_id": null,
+    "iteration_count": 0,
+    "last_error": null,
+    "retry_count": 0,
+    "pending_retry": null,
+    "stop_reason": "AMBIGUOUS_ITEM",
+    "outstanding": "Which inventory item do you mean? No item has been selected. Please provide or confirm the intended item.",
+    "preparing_officer_id": "officer-ashley",
+    "tool_history": []
+  },
+  "observations": [
+    "The loop asked which item was meant and selected none: zero tool calls, item left as None, reason AMBIGUOUS_ITEM. It did not guess between INV-001 and INV-002 (US-02 AC2).",
+    "State was preserved unchanged apart from the stop annotations.",
+    "FINDING: run_agent has no description-matching step. Detecting that the text is ambiguous happens before the loop, outside it, so this trace relies on the caller to have done that.",
+    "FINDING: the hand-off message is generic ('Which inventory item do you mean?') and does not list the candidate items, so the officer is not told which items were in contention. Contract section 6 says the hand-off should let the officer resume without starting again."
+  ]
+}
