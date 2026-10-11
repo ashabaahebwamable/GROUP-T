@@ -14,6 +14,7 @@ from src.tools.procurement import (
     compare_quotations,
     create_requisition_draft,
 )
+from src.memory import get_supplier_preference_hint
 
 
 # Every agent tool call is appended here, like Week 3's retrieval.jsonl.
@@ -98,7 +99,8 @@ TOOL_SCHEMAS = [
         "name": "compare_quotations",
         "description": (
             "Compare supplier quotations using deterministic landed cost per "
-            "inventory base unit."
+            "inventory base unit. Any previous supplier preference is advisory "
+            "context only and must never override the computed ranking."
         ),
         "parameters": {
             "type": "object",
@@ -384,6 +386,10 @@ def dispatch_tool(
         # Deterministic tool execution
         # --------------------------------------------------------------
         tool_result = tool_function(**call_arguments)
+        if tool_name == "compare_quotations":
+            tool_result["supplier_preference_hint"] = get_supplier_preference_hint(
+                arguments["item_id"]
+            )
 
     except (TypeError, ValueError) as exc:
         return _failure(

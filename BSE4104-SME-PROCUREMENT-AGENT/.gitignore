@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 .venv/
+data/*.sqlite3
 node_modules/
 .DS_Store

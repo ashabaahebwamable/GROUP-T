@@ -1,4 +1,5 @@
 ﻿import unittest
+from unittest.mock import patch
 
 from src.agent.tools_router import (
     TOOL_REGISTRY,
@@ -154,6 +155,53 @@ class ToolRouterTests(unittest.TestCase):
 
         self.assertFalse(result["checked"])
         self.assertFalse(result["mismatch"])
+
+    def test_comparison_exposes_preference_as_hint_without_changing_ranked_result(self):
+        comparison = {
+            "item_id": "INV-001",
+            "ranked_quotations": [{"supplier_id": "SUP-02", "rank": 1}],
+            "recommended_supplier_id": "SUP-02",
+            "blocking_flags": [],
+            "approval_level": "operations_manager",
+        }
+        hint = {
+            "item_id": "INV-001",
+            "supplier_id": "SUP-01",
+            "confirmed_by": "officer-1",
+            "confirmed_at": "2026-10-11T10:00:00+00:00",
+            "message": "Informational only.",
+        }
+
+        def fake_compare(item_id, quantity_base):
+            self.assertEqual(item_id, "INV-001")
+            self.assertEqual(quantity_base, 5)
+            return dict(comparison)
+
+        with (
+            patch.dict(
+                TOOL_REGISTRY,
+                {"compare_quotations": fake_compare},
+            ),
+            patch(
+                "src.agent.tools_router.get_supplier_preference_hint",
+                return_value=hint,
+            ),
+        ):
+            result, _ = dispatch_tool(
+                "compare_quotations",
+                {"item_id": "INV-001", "quantity_base": 5},
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            result["result"]["ranked_quotations"],
+            comparison["ranked_quotations"],
+        )
+        self.assertEqual(
+            result["result"]["recommended_supplier_id"],
+            "SUP-02",
+        )
+        self.assertEqual(result["result"]["supplier_preference_hint"], hint)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,37 @@
 import unittest
 from unittest.mock import call, patch
 
-from src.agent.loop import run_agent
+from src.agent.loop import default_plan, run_agent
 
 
 class BoundedAgentLoopTests(unittest.TestCase):
+
+    def test_confirmed_supplier_preference_is_shown_only_as_a_hint(self):
+        plan = default_plan(
+            {
+                "item": {"item_id": "INV-001"},
+                "quantity": 200,
+                "reorder_result": {"items_to_reorder": [{"item_id": "INV-001"}]},
+                "comparison_result": {
+                    "recommended_supplier_id": "SUP-02",
+                    "supplier_preference_hint": {
+                        "supplier_id": "SUP-01",
+                        "confirmed_by": "officer-1",
+                        "confirmed_at": "2026-10-11T10:00:00+00:00",
+                    },
+                },
+                "draft_id": "REQ-100",
+                "preparing_officer_id": "OFFICER-1",
+            }
+        )
+
+        self.assertEqual(plan["action"], "handoff")
+        self.assertIn("Previously confirmed preference: SUP-01", plan["message"])
+        self.assertIn("did not affect ranking", plan["message"])
+        self.assertEqual(
+            plan["reason"],
+            "READY_FOR_HUMAN_APPROVAL",
+        )
 
     @patch("src.agent.loop.dispatch_tool")
     def test_plan_and_observe_advance_case_through_tool_results(

@@ -9,10 +9,11 @@ Governing rule (per the plan and the AI Boundary Matrix, Principle 2):
 "The implementation contains no automatic approval path at any value, so
 autonomous approval is impossible rather than merely prohibited."
 
-State model (from knowledge/records/requisitions.csv schema):
-    DRAFT -> PENDING_APPROVAL -> APPROVED
-                               -> REJECTED
-                               -> QUERIED
+State model:
+    OPEN -> DRAFT -> PENDING_APPROVAL -> APPROVED
+                                     -> REJECTED
+                                     -> QUERIED
+        -> HALTED (from any active state)
 
 There is no function in this module that can move a requisition directly from
 DRAFT to APPROVED, or into APPROVED without a recorded approver_id and
@@ -23,10 +24,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
 
 
-VALID_STATES = {"DRAFT", "PENDING_APPROVAL", "APPROVED", "REJECTED", "QUERIED"}
+VALID_STATES = {
+    "OPEN",
+    "DRAFT",
+    "PENDING_APPROVAL",
+    "APPROVED",
+    "REJECTED",
+    "QUERIED",
+    "HALTED",
+}
+ACTIVE_STATES = {"OPEN", "DRAFT", "PENDING_APPROVAL"}
 
 
 class IllegalStateTransitionError(Exception):
@@ -67,6 +76,17 @@ class Requisition:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def start_draft(requisition: Requisition) -> Requisition:
+    """OPEN -> DRAFT."""
+    if requisition.state != "OPEN":
+        raise IllegalStateTransitionError(
+            f"Cannot start a draft from state {requisition.state!r}; "
+            "only OPEN cases may become DRAFT."
+        )
+    requisition.state = "DRAFT"
+    return requisition
 
 
 def submit_for_approval(requisition: Requisition) -> Requisition:
@@ -156,13 +176,32 @@ def query(requisition: Requisition, *, approver_id: str, reason: str) -> Requisi
     return requisition
 
 
+def halt(requisition: Requisition, *, reason: str) -> Requisition:
+    """Move an active case to HALTED. Halted cases cannot be resumed."""
+    if requisition.state not in ACTIVE_STATES:
+        raise IllegalStateTransitionError(
+            f"Cannot halt from state {requisition.state!r}; only active cases "
+            "may be halted."
+        )
+    if not reason or not str(reason).strip():
+        raise ValueError("halt() requires a non-empty reason.")
+
+    requisition.state = "HALTED"
+    requisition.decided_at = _now_iso()
+    requisition.decision_reason = reason
+    return requisition
+
+
 __all__ = [
     "VALID_STATES",
+    "ACTIVE_STATES",
     "Requisition",
     "IllegalStateTransitionError",
     "BlockingFlagsUnresolvedError",
+    "start_draft",
     "submit_for_approval",
     "approve",
     "reject",
     "query",
+    "halt",
 ]

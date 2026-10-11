@@ -204,6 +204,14 @@ def default_plan(state: dict[str, Any]) -> dict[str, Any]:
         }
 
     comparison = state["comparison_result"]
+    preference = comparison.get("supplier_preference_hint")
+    preference_note = ""
+    if preference:
+        preference_note = (
+            f" Previously confirmed preference: {preference['supplier_id']} "
+            f"(confirmed by {preference['confirmed_by']} at "
+            f"{preference['confirmed_at']}); this hint did not affect ranking."
+        )
 
     blocking_flags = comparison.get("blocking_flags") or []
 
@@ -214,6 +222,7 @@ def default_plan(state: dict[str, Any]) -> dict[str, Any]:
             "message": (
                 "The quotation comparison produced blocking policy or "
                 "eligibility flags. Human review is required."
+                f"{preference_note}"
             ),
         }
 
@@ -228,6 +237,7 @@ def default_plan(state: dict[str, Any]) -> dict[str, Any]:
             "message": (
                 "No eligible supplier recommendation was produced by "
                 "the deterministic quotation comparison."
+                f"{preference_note}"
             ),
         }
 
@@ -268,6 +278,7 @@ def default_plan(state: dict[str, Any]) -> dict[str, Any]:
         "message": (
             "The requisition draft is ready for human review and approval. "
             "The agent will not approve or purchase automatically."
+            f"{preference_note}"
         ),
     }
 
