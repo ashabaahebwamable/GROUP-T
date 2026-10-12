@@ -395,6 +395,24 @@ class ResumeTests(unittest.TestCase):
             run_agent(state={"item": {"item_id": "INV-001"}}, item_id="INV-002")
 
     @patch("src.agent.loop.dispatch_tool")
+    def test_resume_after_exhausted_retry_gets_a_fresh_retry(self, mock_dispatch):
+        failure = (
+            {"ok": False, "error": "TOOL_EXECUTION_ERROR", "message": "Outage."},
+            {"status": "error"},
+        )
+        mock_dispatch.side_effect = [failure, failure]
+        first = run_agent(item_id="INV-001")
+
+        self.assertEqual(first["reason"], "TOOL_FAILED_AFTER_RETRY")
+
+        mock_dispatch.side_effect = [failure, REORDER_OK]
+        second = run_agent(state=first["state"])
+
+        # One failure, one retry that succeeds: the case moves on.
+        self.assertEqual(second["reason"], "QUANTITY_CONFIRMATION_REQUIRED")
+        self.assertEqual(mock_dispatch.call_count, 4)
+
+    @patch("src.agent.loop.dispatch_tool")
     def test_resume_does_not_repeat_completed_steps(self, mock_dispatch):
         mock_dispatch.side_effect = [REORDER_OK]
         first = run_agent(item_id="INV-001")  # stops: quantity needs confirming

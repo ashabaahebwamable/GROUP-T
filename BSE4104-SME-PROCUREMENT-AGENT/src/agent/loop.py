@@ -685,6 +685,10 @@ def _resumable_state(saved: dict[str, Any]) -> dict[str, Any]:
     state["iteration_count"] = 0
     state["stop_reason"] = None
     state["outstanding"] = None
+    # A retry still pending (halted at the iteration limit) keeps its count;
+    # otherwise the resumed run gets a fresh retry allowance.
+    if not state.get("pending_retry"):
+        state["retry_count"] = 0
     return state
 
 

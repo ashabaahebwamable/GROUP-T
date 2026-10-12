@@ -14,10 +14,16 @@ Run from the project root:
 
 Safe to run repeatedly:
   * The default planner is deterministic, so no model is called and no Gemini quota
-    is used.
-  * Requisition drafts and their audit events are written to a temporary copy, never to
-    data/requisitions.csv or evidence/traces/audit-log.jsonl.
+    is used. lookup_policy runs the real Week 3 retriever (local embedding model).
+  * Requisition drafts, the loop's tool trace and every audit event (drafts and
+    AGENT_RUN_STOPPED) are written to a temporary folder, never to
+    data/requisitions.csv, evidence/traces/tool-calls.jsonl or audit-log.jsonl.
+    lookup_policy's retrieval log is switched off for the same reason.
   * The only files written are the trace files in evidence/traces/week5/.
+
+Regenerated on 12 Oct 2026 after the contract gaps were closed (hand-off H1, the
+lookup_policy step, resume, persisted stops). Trace 1 and Trace 3 phase B now show a
+real resume from the saved case state.
 
 Two things are simulated and each trace says so in its "environment" block:
   * The clock for compare_quotations is pinned. On the real clock every synthetic
@@ -46,8 +52,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.agent import loop, tools_router  # noqa: E402
 from src.tools import procurement  # noqa: E402
+from src.tools.policy import lookup_policy  # noqa: E402
 
 OUT_DIR = PROJECT_ROOT / "evidence" / "traces" / "week5"
+OFFICER_ID = "officer-ashley"
 HAPPY_DATE = "2026-08-27"      # latest date on which INV-003 has no blocking flag
 REFERENCE_DATE = "2026-09-01"  # inside the cement quotations' validity window
 HAPPY_CASE = {
@@ -81,13 +89,21 @@ class Isolated:
         requisitions = tmp / "requisitions.csv"
         shutil.copy(procurement.REQUISITIONS_PATH, requisitions)
         audit = tmp / "audit-log.jsonl"
+        self.audit = audit
+
+        # run_agent persists every run to these two module-level paths.
+        self.stack.enter_context(
+            patch.object(tools_router, "TOOL_TRACE_PATH", tmp / "tool-calls.jsonl")
+        )
+        self.stack.enter_context(patch.object(procurement, "AUDIT_LOG_PATH", audit))
 
         registry: dict[str, Any] = {
             "create_requisition_draft": functools.partial(
                 procurement.create_requisition_draft,
                 requisitions_path=requisitions,
                 audit_log_path=audit,
-            )
+            ),
+            "lookup_policy": functools.partial(lookup_policy, trace_path=None),
         }
         if self.pin_date:
             pinned = functools.partial(
@@ -105,6 +121,21 @@ class Isolated:
 
     def __exit__(self, *exc):
         return self.stack.__exit__(*exc)
+
+    def audit_events(self) -> list[dict[str, Any]]:
+        """The audit events the runs persisted (read before the folder is deleted).
+
+        Event ids, run ids and timestamps are left out so that regenerating the traces
+        does not change them.
+        """
+        if not self.audit.exists():
+            return []
+        volatile = {"event_id", "run_id", "timestamp", "audit_log_reference"}
+        return [
+            {k: v for k, v in json.loads(line).items() if k not in volatile}
+            for line in self.audit.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
 
 
 class FlakyTool:
@@ -170,6 +201,7 @@ def _digest_step(step: dict[str, Any]) -> dict[str, Any]:
 
 def _describe(result: dict[str, Any]) -> dict[str, Any]:
     state = result["state"]
+    this_run = [s for s in result["trace"] if s.get("tool_result") is not None]
     return {
         "status": result["status"],
         "reason": result["reason"],
@@ -177,11 +209,12 @@ def _describe(result: dict[str, Any]) -> dict[str, Any]:
         "tool_calls_used": state["iteration_count"],
         "retries_used": sum(
             1
-            for i, call in enumerate(state["tool_history"])
-            if i and call["tool_name"] == state["tool_history"][i - 1]["tool_name"]
-            and state["tool_history"][i - 1]["error"]
+            for i, step in enumerate(this_run)
+            if i and step["plan"]["tool_name"] == this_run[i - 1]["plan"]["tool_name"]
+            and not this_run[i - 1]["tool_result"].get("ok")
         ),
-        "tools_called": [c["tool_name"] for c in state["tool_history"]],
+        "tools_called": [s["plan"]["tool_name"] for s in this_run],
+        "case_history_all_runs": [c["tool_name"] for c in state["tool_history"]],
     }
 
 
@@ -192,7 +225,7 @@ def _final_state(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def _record(trace_id, title, scenario, contract_codes, inputs, environment, result,
-            observations) -> dict[str, Any]:
+            observations, audit_events=None) -> dict[str, Any]:
     return {
         "trace_id": trace_id,
         "title": title,
@@ -204,7 +237,19 @@ def _record(trace_id, title, scenario, contract_codes, inputs, environment, resu
         "outcome": _describe(result),
         "steps": [_digest_step(s) for s in result["trace"]],
         "final_state": _final_state(result["state"]),
+        "persisted_audit_events": audit_events or [],
         "observations": observations,
+    }
+
+
+def _phase(label, description, result, notes) -> dict[str, Any]:
+    return {
+        "phase": label,
+        "description": description,
+        "outcome": _describe(result),
+        "steps": [_digest_step(s) for s in result["trace"]],
+        "final_state": _final_state(result["state"]),
+        "observations": notes,
     }
 
 
@@ -219,7 +264,10 @@ def _write(name: str, payload: dict[str, Any]) -> None:
 
 
 PLANNER_NOTE = "default_plan (deterministic rules; no model call, no API quota used)"
-WRITES_NOTE = "requisition drafts and audit events written to a temporary copy only"
+WRITES_NOTE = (
+    "requisition drafts, the loop's tool trace and all audit events written to a "
+    "temporary folder only; lookup_policy retrieval logging switched off"
+)
 
 
 def _env(pin_date: str | None) -> dict[str, str]:
@@ -235,45 +283,91 @@ def _env(pin_date: str | None) -> dict[str, str]:
 # The traces
 # ---------------------------------------------------------------------------
 def trace_1() -> None:
-    with Isolated(pin_date=HAPPY_DATE):
-        happy = loop.run_agent(**HAPPY_CASE)
+    with Isolated(pin_date=HAPPY_DATE) as iso:
+        run_1 = loop.run_agent(**HAPPY_CASE)
+        recommended = run_1["state"]["comparison_result"]["recommended_supplier_id"]
+        confirmed_state = loop.confirm_supplier(
+            run_1["state"], supplier_id=recommended, officer_id=OFFICER_ID
+        )
+        run_2 = loop.run_agent(state=confirmed_state)
+        audit_events = iso.audit_events()
 
-    _write(
-        "trace-1-happy-path.json",
-        _record(
-            "W5-04-trace-1",
-            "Happy path, end to end: reorder signal -> requisition draft awaiting a human",
-            "A flagged item is checked, quotations are compared by code, and a DRAFT "
-            "requisition is created. The agent then hands off; it never submits or approves.",
-            ["H2 (draft created, officer must submit)"],
-            HAPPY_CASE,
-            _env(HAPPY_DATE),
-            happy,
-            [
-                "Goal reached: three tool calls (check_reorder_levels -> compare_quotations "
-                "-> create_requisition_draft), then a hand-off. The agent did not submit, "
-                "approve, contact a supplier or purchase.",
-                "The recommended supplier and every figure came from the deterministic "
-                "tools, not the model (AI Boundary Matrix Principle 1).",
-                "WHY THIS ITEM AND DATE: INV-003 with the clock pinned to 2026-08-27 is the "
-                "only flag-free case in the corpus. Searching every date from 2026-08-15 to "
-                "2026-10-13 for the four items that have quotations, no other combination "
-                "reaches a draft. See Traces 1b and 1c and the README for why.",
-                "DEVIATION FROM THE CONTRACT: no hand-off H1. The draft was created straight "
-                "after the comparison, without an officer confirming the supplier. This is "
-                "known gap 3 in the contract (section 9): the loop does not yet wait for "
-                "officer confirmation.",
-                "DEVIATION FROM THE CONTRACT: lookup_policy was never called. The contract "
-                "(section 1, step 2) has the agent retrieve the quotation minimum and "
-                "approval threshold; default_plan skips it. The policy minimum is still "
-                "enforced inside compare_quotations (flags), but no policy evidence is "
-                "gathered for the officer.",
-            ],
-        ),
-    )
+    confirmation = dict(confirmed_state["confirmed_supplier"])
+    confirmation["confirmed_at"] = "(timestamp recorded at run time)"
 
-    with Isolated(pin_date=REFERENCE_DATE):
+    payload = {
+        "trace_id": "W5-04-trace-1",
+        "title": "Happy path, end to end: reorder signal -> H1 -> officer confirms -> "
+                 "resume -> requisition draft awaiting a human",
+        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "scenario": "A flagged item is checked, the policy rules are retrieved and "
+                    "quotations are compared by code. The agent stops at H1 for the "
+                    "officer to confirm the supplier, then resumes from the saved case "
+                    "state, creates a DRAFT and stops at H2. It never submits or approves.",
+        "contract_codes": [
+            "H1 (officer must confirm the supplier)",
+            "H2 (draft created, officer must submit)",
+        ],
+        "inputs": HAPPY_CASE,
+        "environment": _env(HAPPY_DATE),
+        "phases": [
+            _phase(
+                "Run 1 - steps 1 to 3, stop at H1",
+                "Reorder check, two policy lookups, quotation comparison.",
+                run_1,
+                [
+                    f"Four tool calls, then hand-off H1 ({run_1['reason']}). No draft "
+                    "exists: the agent did not confirm the supplier itself.",
+                    "Both policy rules were found: "
+                    + "; ".join(
+                        f"'{topic}' -> section {evidence['policy_section']!r}"
+                        for topic, evidence in run_1["state"]["policy_evidence"].items()
+                    )
+                    + ".",
+                    f"The recommended supplier ({recommended}) and every figure came from "
+                    "the deterministic tools, not the model (AI Boundary Matrix "
+                    "Principle 1).",
+                ],
+            ),
+            {
+                "phase": "Step 4 - the officer confirms the supplier",
+                "description": "loop.confirm_supplier(), an officer action and not a "
+                               "tool. Only the computed recommendation can be confirmed.",
+                "confirmed_supplier": confirmation,
+            },
+            _phase(
+                "Run 2 - resume, step 5, stop at H2",
+                "run_agent(state=...) continues the saved case.",
+                run_2,
+                [
+                    "Resumed, not restarted: no completed step was repeated, and the "
+                    "iteration count started again at 0 (contract section 2).",
+                    f"One tool call created {run_2['state']['draft_id']} in DRAFT, then "
+                    f"hand-off H2 ({run_2['reason']}). The agent did not submit, approve, "
+                    "contact a supplier or purchase.",
+                    "The router passed the officer's confirmation from the case state; "
+                    "without it the draft is refused with SUPPLIER_NOT_CONFIRMED.",
+                ],
+            ),
+        ],
+        "persisted_audit_events": audit_events,
+        "observations": [
+            "Goal reached up to H2 in 5 tool calls over two runs, each within the "
+            "6-call limit.",
+            "Every stop was persisted: one AGENT_RUN_STOPPED audit event per run, and "
+            "the draft's audit event records the confirming officer "
+            "(persisted_audit_events).",
+            "WHY THIS ITEM AND DATE: INV-003 with the clock pinned to 2026-08-27 is the "
+            "only flag-free case in the corpus. Searching every date from 2026-08-15 to "
+            "2026-10-13 for the four items that have quotations, no other combination "
+            "reaches a draft. See Traces 1b and 1c and the README for why.",
+        ],
+    }
+    _write("trace-1-happy-path.json", payload)
+
+    with Isolated(pin_date=REFERENCE_DATE) as iso:
         reference = loop.run_agent(**REFERENCE_CASE)
+        reference_audit = iso.audit_events()
 
     _write(
         "trace-1b-reference-case-excluded-supplier.json",
@@ -306,11 +400,13 @@ def trace_1() -> None:
                 "informational flag when enough valid quotations remain, or change the "
                 "reference case and final demo. This needs a decision, not a test fix.",
             ],
+            reference_audit,
         ),
     )
 
-    with Isolated(pin_date=None):
+    with Isolated(pin_date=None) as iso:
         stale = loop.run_agent(**HAPPY_CASE)
+        stale_audit = iso.audit_events()
 
     _write(
         "trace-1c-real-clock-stale-quotations.json",
@@ -339,6 +435,7 @@ def trace_1() -> None:
                 "006) have any quotation, so most reorder signals can never get past "
                 "compare_quotations.",
             ],
+            stale_audit,
         ),
     )
 
@@ -351,13 +448,14 @@ def trace_2() -> None:
         if description.lower() in row["item_name"].lower()
     ]
 
-    with Isolated(pin_date=REFERENCE_DATE):
+    with Isolated(pin_date=REFERENCE_DATE) as iso:
         result = loop.run_agent(
             item_id=None,
             quantity_base=REFERENCE_CASE["quantity_base"],
             unit=REFERENCE_CASE["unit"],
             preparing_officer_id=REFERENCE_CASE["preparing_officer_id"],
         )
+        ambiguous_audit = iso.audit_events()
 
     record = _record(
         "W5-04-trace-2",
@@ -392,6 +490,7 @@ def trace_2() -> None:
             "which items were in contention. Contract section 6 says the hand-off should "
             "let the officer resume without starting again.",
         ],
+        ambiguous_audit,
     )
     _write("trace-2-ambiguous-item.json", record)
 
@@ -404,24 +503,24 @@ def trace_3() -> None:
     with Isolated(pin_date=HAPPY_DATE, overrides={"check_reorder_levels": outage}):
         phase_a = loop.run_agent(**HAPPY_CASE)
 
-    # Phase B: tool returns -> recovery (fresh run: run_agent cannot resume a saved state)
-    with Isolated(pin_date=HAPPY_DATE):
-        phase_b = loop.run_agent(**HAPPY_CASE)
+    # Phase B: the tool returns -> the officer resumes the saved case from phase A,
+    # stops at H1, confirms the supplier, and resumes again to the draft
+    with Isolated(pin_date=HAPPY_DATE) as iso:
+        phase_b = loop.run_agent(state=phase_a["state"])
+        recommended = phase_b["state"]["comparison_result"]["recommended_supplier_id"]
+        phase_b2 = loop.run_agent(
+            state=loop.confirm_supplier(
+                phase_b["state"], supplier_id=recommended, officer_id=OFFICER_ID
+            )
+        )
+        recovery_audit = iso.audit_events()
 
     # Phase C: transient outage -> the single retry succeeds inside the same run
     transient = FlakyTool(real_reorder, fail_times=1)
     with Isolated(pin_date=HAPPY_DATE, overrides={"check_reorder_levels": transient}):
         phase_c = loop.run_agent(**HAPPY_CASE)
 
-    def phase(label, description, result, notes):
-        return {
-            "phase": label,
-            "description": description,
-            "outcome": _describe(result),
-            "steps": [_digest_step(s) for s in result["trace"]],
-            "final_state": _final_state(result["state"]),
-            "observations": notes,
-        }
+    phase = _phase
 
     payload = {
         "trace_id": "W5-04-trace-3",
@@ -454,16 +553,26 @@ def trace_3() -> None:
                 ],
             ),
             phase(
-                "B - the tool returns (recovery)",
-                "With the outage cleared, the same request is run again.",
+                "B - the tool returns: resume from the saved state (recovery)",
+                "With the outage cleared, the officer passes phase A's preserved case "
+                "state back to run_agent(state=...).",
                 phase_b,
                 [
-                    "Recovered: the run completed through to the draft and a hand-off.",
-                    "FINDING: this is a fresh run, not a resume. run_agent has no "
-                    "parameter that accepts the saved case state (it always builds a new "
-                    "one), so the preserved state from phase A cannot be handed back. "
-                    "Contract section 2 says a resumed run carries state over; only the "
-                    "lower-level run_agent_step accepts a state today.",
+                    "Recovered by resuming, not by starting again: the case history "
+                    "carries phase A's two failed calls, and the iteration count and "
+                    "retry allowance started fresh (contract section 2).",
+                    f"The run continued to hand-off H1 ({phase_b['reason']}).",
+                ],
+            ),
+            phase(
+                "B2 - the officer confirms the supplier, resume to the draft",
+                f"loop.confirm_supplier(supplier_id={recommended!r}), then "
+                "run_agent(state=...) again.",
+                phase_b2,
+                [
+                    f"One tool call created {phase_b2['state']['draft_id']}, then hand-off "
+                    f"H2 ({phase_b2['reason']}). The outage cost the officer nothing: no "
+                    "completed step was repeated.",
                 ],
             ),
             phase(
@@ -473,11 +582,12 @@ def trace_3() -> None:
                 [
                     f"The tool was called {transient.calls} times for its first step: one "
                     "failure, then a successful retry.",
-                    "On success the retry counter reset to 0 and the run carried on to "
-                    "the hand-off without needing a human.",
+                    "On success the retry counter reset to 0 and the run carried on, "
+                    f"without needing a human, to hand-off H1 ({phase_c['reason']}).",
                 ],
             ),
         ],
+        "persisted_audit_events_phase_b": recovery_audit,
     }
     _write("trace-3-tool-failure-recovery.json", payload)
 

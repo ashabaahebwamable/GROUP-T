@@ -1,7 +1,7 @@
 {
   "trace_id": "W5-04-trace-1c",
   "title": "Supplementary: the Trace 1 case on the real clock stops at S4",
-  "generated_utc": "2026-10-10T11:01:29+00:00",
+  "generated_utc": "2026-10-12T17:24:33+00:00",
   "scenario": "Identical inputs to Trace 1 with no date pinning. The synthetic quotations have passed their validity windows, so the comparison returns blocking flags and the loop correctly refuses to draft.",
   "contract_codes": [
     "S4 (policy override needed)"
@@ -15,16 +15,24 @@
   "environment": {
     "planner": "default_plan (deterministic rules; no model call, no API quota used)",
     "clock": "real system clock (no pinning)",
-    "writes": "requisition drafts and audit events written to a temporary copy only"
+    "writes": "requisition drafts, the loop's tool trace and all audit events written to a temporary folder only; lookup_policy retrieval logging switched off"
   },
   "outcome": {
     "status": "handoff",
     "reason": "POLICY_BLOCKING_FLAGS",
     "message": "The quotation comparison produced blocking policy or eligibility flags. Human review is required.",
-    "tool_calls_used": 2,
+    "tool_calls_used": 4,
     "retries_used": 0,
     "tools_called": [
       "check_reorder_levels",
+      "lookup_policy",
+      "lookup_policy",
+      "compare_quotations"
+    ],
+    "case_history_all_runs": [
+      "check_reorder_levels",
+      "lookup_policy",
+      "lookup_policy",
       "compare_quotations"
     ]
   },
@@ -66,6 +74,66 @@
     },
     {
       "step": 2,
+      "plan": {
+        "action": "tool",
+        "tool_name": "lookup_policy",
+        "arguments": {
+          "topic": "minimum number of quotations required"
+        }
+      },
+      "status": "continue",
+      "tool_result": {
+        "ok": true,
+        "tool_name": "lookup_policy",
+        "result": {
+          "topic": "minimum number of quotations required",
+          "status": "found",
+          "policy_section": "2. Quotation requirement",
+          "rule": "## 2. Quotation requirement\n\n2.1 A minimum of **three valid quotations** must be obtained for any requisition with a total value of UGX 1,000,000 or above.\n2.2 Below UGX 1,000,000, a minimum of **two valid quotations** is required.\n2.3 A quotation is valid only if it is within its stated validity period on the date the requisition is prepared. A quotation whose validity period has lapsed must be excluded from comparison.\n2.4 A quotation must state the item, the quantity, the unit of measure, the rate, and the treatment of value-added tax. A quotation that does not state its unit of measure is incomplete and must not be used until the supplier clarifies it.",
+          "source": "knowledge\\policy\\procurement-policy.md",
+          "score": 0.6746
+        }
+      },
+      "counters_after_step": {
+        "iteration_count": 2,
+        "retry_count": 0,
+        "pending_retry": null,
+        "last_error": null,
+        "stop_reason": null
+      }
+    },
+    {
+      "step": 3,
+      "plan": {
+        "action": "tool",
+        "tool_name": "lookup_policy",
+        "arguments": {
+          "topic": "approval threshold for requisitions"
+        }
+      },
+      "status": "continue",
+      "tool_result": {
+        "ok": true,
+        "tool_name": "lookup_policy",
+        "result": {
+          "topic": "approval threshold for requisitions",
+          "status": "found",
+          "policy_section": "5. Approval thresholds",
+          "rule": "## 5. Approval thresholds\n\n5.1 Requisitions up to UGX 5,000,000 require approval by the operations manager.\n5.2 Requisitions above UGX 5,000,000 require approval by a director.\n5.3 No requisition is approved by virtue of its value being small. Every requisition requires an approval decision by a person.\n5.4 The officer preparing a requisition may not approve it.",
+          "source": "knowledge\\policy\\procurement-policy.md",
+          "score": 0.751
+        }
+      },
+      "counters_after_step": {
+        "iteration_count": 3,
+        "retry_count": 0,
+        "pending_retry": null,
+        "last_error": null,
+        "stop_reason": null
+      }
+    },
+    {
+      "step": 4,
       "plan": {
         "action": "tool",
         "tool_name": "compare_quotations",
@@ -123,11 +191,12 @@
             "MINIMUM_VALID_QUOTATIONS_NOT_MET:required=2:found=0"
           ],
           "approval_level": "operations_manager",
-          "minimum_valid_quotations_required": 2
+          "minimum_valid_quotations_required": 2,
+          "supplier_preference_hint": null
         }
       },
       "counters_after_step": {
-        "iteration_count": 2,
+        "iteration_count": 4,
         "retry_count": 0,
         "pending_retry": null,
         "last_error": null,
@@ -135,7 +204,7 @@
       }
     },
     {
-      "step": 3,
+      "step": 5,
       "plan": {
         "action": "handoff",
         "reason": "POLICY_BLOCKING_FLAGS",
@@ -144,7 +213,7 @@
       "status": "handoff",
       "tool_result": null,
       "counters_after_step": {
-        "iteration_count": 2,
+        "iteration_count": 4,
         "retry_count": 0,
         "pending_retry": null,
         "last_error": null,
@@ -158,6 +227,24 @@
     },
     "quantity": 460,
     "unit": "piece",
+    "policy_evidence": {
+      "minimum number of quotations required": {
+        "topic": "minimum number of quotations required",
+        "status": "found",
+        "policy_section": "2. Quotation requirement",
+        "rule": "## 2. Quotation requirement\n\n2.1 A minimum of **three valid quotations** must be obtained for any requisition with a total value of UGX 1,000,000 or above.\n2.2 Below UGX 1,000,000, a minimum of **two valid quotations** is required.\n2.3 A quotation is valid only if it is within its stated validity period on the date the requisition is prepared. A quotation whose validity period has lapsed must be excluded from comparison.\n2.4 A quotation must state the item, the quantity, the unit of measure, the rate, and the treatment of value-added tax. A quotation that does not state its unit of measure is incomplete and must not be used until the supplier clarifies it.",
+        "source": "knowledge\\policy\\procurement-policy.md",
+        "score": 0.6746
+      },
+      "approval threshold for requisitions": {
+        "topic": "approval threshold for requisitions",
+        "status": "found",
+        "policy_section": "5. Approval thresholds",
+        "rule": "## 5. Approval thresholds\n\n5.1 Requisitions up to UGX 5,000,000 require approval by the operations manager.\n5.2 Requisitions above UGX 5,000,000 require approval by a director.\n5.3 No requisition is approved by virtue of its value being small. Every requisition requires an approval decision by a person.\n5.4 The officer preparing a requisition may not approve it.",
+        "source": "knowledge\\policy\\procurement-policy.md",
+        "score": 0.751
+      }
+    },
     "comparison_result": {
       "item_id": "INV-003",
       "quantity_base": 460.0,
@@ -203,7 +290,8 @@
         "MINIMUM_VALID_QUOTATIONS_NOT_MET:required=2:found=0"
       ],
       "approval_level": "operations_manager",
-      "minimum_valid_quotations_required": 2
+      "minimum_valid_quotations_required": 2,
+      "supplier_preference_hint": null
     },
     "blocking_flags": [
       "EXPIRED_OR_INVALID_QUOTATION:QUO-1005",
@@ -211,8 +299,9 @@
       "EXPIRED_OR_INVALID_QUOTATION:QUO-1007",
       "MINIMUM_VALID_QUOTATIONS_NOT_MET:required=2:found=0"
     ],
+    "confirmed_supplier": null,
     "draft_id": null,
-    "iteration_count": 2,
+    "iteration_count": 4,
     "last_error": null,
     "retry_count": 0,
     "pending_retry": null,
@@ -242,6 +331,22 @@
         "error": null
       },
       {
+        "tool_name": "lookup_policy",
+        "arguments": {
+          "topic": "minimum number of quotations required"
+        },
+        "ok": true,
+        "error": null
+      },
+      {
+        "tool_name": "lookup_policy",
+        "arguments": {
+          "topic": "approval threshold for requisitions"
+        },
+        "ok": true,
+        "error": null
+      },
+      {
         "tool_name": "compare_quotations",
         "arguments": {
           "item_id": "INV-003",
@@ -252,6 +357,17 @@
       }
     ]
   },
+  "persisted_audit_events": [
+    {
+      "draft_id": null,
+      "event_type": "AGENT_RUN_STOPPED",
+      "item_id": "INV-003",
+      "iteration_count": 4,
+      "outstanding": "The quotation comparison produced blocking policy or eligibility flags. Human review is required.",
+      "status": "handoff",
+      "stop_reason": "POLICY_BLOCKING_FLAGS"
+    }
+  ],
   "observations": [
     "The loop behaved correctly: with too few valid quotations it handed off with POLICY_BLOCKING_FLAGS instead of drafting.",
     "FINDING (data staleness): every quotation in knowledge/records/quotations.csv is dated 20-28 Aug 2026 with 7-30 days of validity, so none (0 of 10) is valid on the real date. No end-to-end run through the router can succeed on today's clock.",

@@ -1,9 +1,10 @@
 {
   "trace_id": "W5-04-trace-1",
-  "title": "Happy path, end to end: reorder signal -> requisition draft awaiting a human",
-  "generated_utc": "2026-10-10T11:01:29+00:00",
-  "scenario": "A flagged item is checked, quotations are compared by code, and a DRAFT requisition is created. The agent then hands off; it never submits or approves.",
+  "title": "Happy path, end to end: reorder signal -> H1 -> officer confirms -> resume -> requisition draft awaiting a human",
+  "generated_utc": "2026-10-12T17:24:32+00:00",
+  "scenario": "A flagged item is checked, the policy rules are retrieved and quotations are compared by code. The agent stops at H1 for the officer to confirm the supplier, then resumes from the saved case state, creates a DRAFT and stops at H2. It never submits or approves.",
   "contract_codes": [
+    "H1 (officer must confirm the supplier)",
     "H2 (draft created, officer must submit)"
   ],
   "inputs": {
@@ -15,71 +16,279 @@
   "environment": {
     "planner": "default_plan (deterministic rules; no model call, no API quota used)",
     "clock": "compare_quotations pinned to as_of_date=2026-08-27",
-    "writes": "requisition drafts and audit events written to a temporary copy only"
+    "writes": "requisition drafts, the loop's tool trace and all audit events written to a temporary folder only; lookup_policy retrieval logging switched off"
   },
-  "outcome": {
-    "status": "handoff",
-    "reason": "READY_FOR_HUMAN_APPROVAL",
-    "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
-    "tool_calls_used": 3,
-    "retries_used": 0,
-    "tools_called": [
-      "check_reorder_levels",
-      "compare_quotations",
-      "create_requisition_draft"
-    ]
-  },
-  "steps": [
+  "phases": [
     {
-      "step": 1,
-      "plan": {
-        "action": "tool",
-        "tool_name": "check_reorder_levels",
-        "arguments": {
-          "item_id": "INV-003"
-        }
+      "phase": "Run 1 - steps 1 to 3, stop at H1",
+      "description": "Reorder check, two policy lookups, quotation comparison.",
+      "outcome": {
+        "status": "handoff",
+        "reason": "SUPPLIER_CONFIRMATION_REQUIRED",
+        "message": "The deterministic comparison recommends SUP-03. An officer must confirm this supplier before the requisition draft is created.",
+        "tool_calls_used": 4,
+        "retries_used": 0,
+        "tools_called": [
+          "check_reorder_levels",
+          "lookup_policy",
+          "lookup_policy",
+          "compare_quotations"
+        ],
+        "case_history_all_runs": [
+          "check_reorder_levels",
+          "lookup_policy",
+          "lookup_policy",
+          "compare_quotations"
+        ]
       },
-      "status": "continue",
-      "tool_result": {
-        "ok": true,
-        "tool_name": "check_reorder_levels",
-        "result": {
-          "items_to_reorder": [
-            {
-              "item_id": "INV-003",
-              "item_name": "Deformed reinforcement bar Y12",
-              "current_stock_base": 140.0,
-              "reorder_level_base": 200.0,
-              "target_stock_base": 600.0,
-              "suggested_reorder_quantity_base": 460.0
+      "steps": [
+        {
+          "step": 1,
+          "plan": {
+            "action": "tool",
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
             }
-          ],
-          "unassessable_items": []
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "check_reorder_levels",
+            "result": {
+              "items_to_reorder": [
+                {
+                  "item_id": "INV-003",
+                  "item_name": "Deformed reinforcement bar Y12",
+                  "current_stock_base": 140.0,
+                  "reorder_level_base": 200.0,
+                  "target_stock_base": 600.0,
+                  "suggested_reorder_quantity_base": 460.0
+                }
+              ],
+              "unassessable_items": []
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 1,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 2,
+          "plan": {
+            "action": "tool",
+            "tool_name": "lookup_policy",
+            "arguments": {
+              "topic": "minimum number of quotations required"
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "lookup_policy",
+            "result": {
+              "topic": "minimum number of quotations required",
+              "status": "found",
+              "policy_section": "2. Quotation requirement",
+              "rule": "## 2. Quotation requirement\n\n2.1 A minimum of **three valid quotations** must be obtained for any requisition with a total value of UGX 1,000,000 or above.\n2.2 Below UGX 1,000,000, a minimum of **two valid quotations** is required.\n2.3 A quotation is valid only if it is within its stated validity period on the date the requisition is prepared. A quotation whose validity period has lapsed must be excluded from comparison.\n2.4 A quotation must state the item, the quantity, the unit of measure, the rate, and the treatment of value-added tax. A quotation that does not state its unit of measure is incomplete and must not be used until the supplier clarifies it.",
+              "source": "knowledge\\policy\\procurement-policy.md",
+              "score": 0.6746
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 2,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 3,
+          "plan": {
+            "action": "tool",
+            "tool_name": "lookup_policy",
+            "arguments": {
+              "topic": "approval threshold for requisitions"
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "lookup_policy",
+            "result": {
+              "topic": "approval threshold for requisitions",
+              "status": "found",
+              "policy_section": "5. Approval thresholds",
+              "rule": "## 5. Approval thresholds\n\n5.1 Requisitions up to UGX 5,000,000 require approval by the operations manager.\n5.2 Requisitions above UGX 5,000,000 require approval by a director.\n5.3 No requisition is approved by virtue of its value being small. Every requisition requires an approval decision by a person.\n5.4 The officer preparing a requisition may not approve it.",
+              "source": "knowledge\\policy\\procurement-policy.md",
+              "score": 0.751
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 3,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 4,
+          "plan": {
+            "action": "tool",
+            "tool_name": "compare_quotations",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "compare_quotations",
+            "result": {
+              "item_id": "INV-003",
+              "quantity_base": 460.0,
+              "quotations_considered": [
+                {
+                  "quotation_id": "QUO-1005",
+                  "supplier_id": "SUP-03",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Bweyogerere Steel Depot",
+                  "delivery_days": 5,
+                  "landed_cost_total": 26900000.0,
+                  "landed_cost_per_base_unit": 58478.26
+                },
+                {
+                  "quotation_id": "QUO-1006",
+                  "supplier_id": "SUP-06",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Ntinda Trade Stores",
+                  "delivery_days": 6,
+                  "landed_cost_total": 28290000.0,
+                  "landed_cost_per_base_unit": 61500.0
+                },
+                {
+                  "quotation_id": "QUO-1007",
+                  "supplier_id": "SUP-01",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Nakawa Building Supplies",
+                  "delivery_days": 4,
+                  "landed_cost_total": 32568000.0,
+                  "landed_cost_per_base_unit": 70800.0
+                }
+              ],
+              "ranked_quotations": [
+                {
+                  "quotation_id": "QUO-1005",
+                  "supplier_id": "SUP-03",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Bweyogerere Steel Depot",
+                  "delivery_days": 5,
+                  "landed_cost_total": 26900000.0,
+                  "landed_cost_per_base_unit": 58478.26
+                },
+                {
+                  "quotation_id": "QUO-1006",
+                  "supplier_id": "SUP-06",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Ntinda Trade Stores",
+                  "delivery_days": 6,
+                  "landed_cost_total": 28290000.0,
+                  "landed_cost_per_base_unit": 61500.0
+                },
+                {
+                  "quotation_id": "QUO-1007",
+                  "supplier_id": "SUP-01",
+                  "valid": true,
+                  "excluded": false,
+                  "complete": true,
+                  "eligible": true,
+                  "supplier_name": "Nakawa Building Supplies",
+                  "delivery_days": 4,
+                  "landed_cost_total": 32568000.0,
+                  "landed_cost_per_base_unit": 70800.0
+                }
+              ],
+              "recommended_supplier_id": "SUP-03",
+              "recommendation_basis": "lowest computed landed cost per base unit",
+              "blocking_flags": [],
+              "approval_level": "director",
+              "minimum_valid_quotations_required": 3,
+              "supplier_preference_hint": null
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 4,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
+        },
+        {
+          "step": 5,
+          "plan": {
+            "action": "handoff",
+            "reason": "SUPPLIER_CONFIRMATION_REQUIRED",
+            "message": "The deterministic comparison recommends SUP-03. An officer must confirm this supplier before the requisition draft is created."
+          },
+          "status": "handoff",
+          "tool_result": null,
+          "counters_after_step": {
+            "iteration_count": 4,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": "SUPPLIER_CONFIRMATION_REQUIRED"
+          }
         }
-      },
-      "counters_after_step": {
-        "iteration_count": 1,
-        "retry_count": 0,
-        "pending_retry": null,
-        "last_error": null,
-        "stop_reason": null
-      }
-    },
-    {
-      "step": 2,
-      "plan": {
-        "action": "tool",
-        "tool_name": "compare_quotations",
-        "arguments": {
-          "item_id": "INV-003",
-          "quantity_base": 460
-        }
-      },
-      "status": "continue",
-      "tool_result": {
-        "ok": true,
-        "tool_name": "compare_quotations",
-        "result": {
+      ],
+      "final_state": {
+        "item": {
+          "item_id": "INV-003"
+        },
+        "quantity": 460,
+        "unit": "piece",
+        "policy_evidence": {
+          "minimum number of quotations required": {
+            "topic": "minimum number of quotations required",
+            "status": "found",
+            "policy_section": "2. Quotation requirement",
+            "rule": "## 2. Quotation requirement\n\n2.1 A minimum of **three valid quotations** must be obtained for any requisition with a total value of UGX 1,000,000 or above.\n2.2 Below UGX 1,000,000, a minimum of **two valid quotations** is required.\n2.3 A quotation is valid only if it is within its stated validity period on the date the requisition is prepared. A quotation whose validity period has lapsed must be excluded from comparison.\n2.4 A quotation must state the item, the quantity, the unit of measure, the rate, and the treatment of value-added tax. A quotation that does not state its unit of measure is incomplete and must not be used until the supplier clarifies it.",
+            "source": "knowledge\\policy\\procurement-policy.md",
+            "score": 0.6746
+          },
+          "approval threshold for requisitions": {
+            "topic": "approval threshold for requisitions",
+            "status": "found",
+            "policy_section": "5. Approval thresholds",
+            "rule": "## 5. Approval thresholds\n\n5.1 Requisitions up to UGX 5,000,000 require approval by the operations manager.\n5.2 Requisitions above UGX 5,000,000 require approval by a director.\n5.3 No requisition is approved by virtue of its value being small. Every requisition requires an approval decision by a person.\n5.4 The officer preparing a requisition may not approve it.",
+            "source": "knowledge\\policy\\procurement-policy.md",
+            "score": 0.751
+          }
+        },
+        "comparison_result": {
           "item_id": "INV-003",
           "quantity_base": 460.0,
           "quotations_considered": [
@@ -162,219 +371,380 @@
           "recommendation_basis": "lowest computed landed cost per base unit",
           "blocking_flags": [],
           "approval_level": "director",
-          "minimum_valid_quotations_required": 3
-        }
-      },
-      "counters_after_step": {
-        "iteration_count": 2,
+          "minimum_valid_quotations_required": 3,
+          "supplier_preference_hint": null
+        },
+        "blocking_flags": [],
+        "confirmed_supplier": null,
+        "draft_id": null,
+        "iteration_count": 4,
+        "last_error": null,
         "retry_count": 0,
         "pending_retry": null,
-        "last_error": null,
-        "stop_reason": null
+        "stop_reason": "SUPPLIER_CONFIRMATION_REQUIRED",
+        "outstanding": "The deterministic comparison recommends SUP-03. An officer must confirm this supplier before the requisition draft is created.",
+        "preparing_officer_id": "officer-ashley",
+        "reorder_result": {
+          "items_to_reorder": [
+            {
+              "item_id": "INV-003",
+              "item_name": "Deformed reinforcement bar Y12",
+              "current_stock_base": 140.0,
+              "reorder_level_base": 200.0,
+              "target_stock_base": 600.0,
+              "suggested_reorder_quantity_base": 460.0
+            }
+          ],
+          "unassessable_items": []
+        },
+        "tool_history": [
+          {
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "lookup_policy",
+            "arguments": {
+              "topic": "minimum number of quotations required"
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "lookup_policy",
+            "arguments": {
+              "topic": "approval threshold for requisitions"
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "compare_quotations",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460
+            },
+            "ok": true,
+            "error": null
+          }
+        ]
+      },
+      "observations": [
+        "Four tool calls, then hand-off H1 (SUPPLIER_CONFIRMATION_REQUIRED). No draft exists: the agent did not confirm the supplier itself.",
+        "Both policy rules were found: 'minimum number of quotations required' -> section '2. Quotation requirement'; 'approval threshold for requisitions' -> section '5. Approval thresholds'.",
+        "The recommended supplier (SUP-03) and every figure came from the deterministic tools, not the model (AI Boundary Matrix Principle 1)."
+      ]
+    },
+    {
+      "phase": "Step 4 - the officer confirms the supplier",
+      "description": "loop.confirm_supplier(), an officer action and not a tool. Only the computed recommendation can be confirmed.",
+      "confirmed_supplier": {
+        "supplier_id": "SUP-03",
+        "confirmed_by": "officer-ashley",
+        "confirmed_at": "(timestamp recorded at run time)"
       }
     },
     {
-      "step": 3,
-      "plan": {
-        "action": "tool",
-        "tool_name": "create_requisition_draft",
-        "arguments": {
-          "item_id": "INV-003",
-          "quantity_base": 460,
-          "recommended_supplier_id": "SUP-03",
-          "comparison_reference": "comparison:INV-003",
-          "preparing_officer_id": "officer-ashley"
-        }
-      },
-      "status": "continue",
-      "tool_result": {
-        "ok": true,
-        "tool_name": "create_requisition_draft",
-        "result": {
-          "requisition_id": "REQ-2026-0003",
-          "state": "DRAFT",
-          "item_id": "INV-003",
-          "quantity_base": 460.0,
-          "recommended_supplier_id": "SUP-03",
-          "audit_log_reference": "(temporary audit log, discarded after the run)#4da446c7-95f5-4d9e-9ff4-e80780dc25d9"
-        }
-      },
-      "counters_after_step": {
-        "iteration_count": 3,
-        "retry_count": 0,
-        "pending_retry": null,
-        "last_error": null,
-        "stop_reason": null
-      }
-    },
-    {
-      "step": 4,
-      "plan": {
-        "action": "handoff",
+      "phase": "Run 2 - resume, step 5, stop at H2",
+      "description": "run_agent(state=...) continues the saved case.",
+      "outcome": {
+        "status": "handoff",
         "reason": "READY_FOR_HUMAN_APPROVAL",
-        "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically."
+        "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
+        "tool_calls_used": 1,
+        "retries_used": 0,
+        "tools_called": [
+          "create_requisition_draft"
+        ],
+        "case_history_all_runs": [
+          "check_reorder_levels",
+          "lookup_policy",
+          "lookup_policy",
+          "compare_quotations",
+          "create_requisition_draft"
+        ]
       },
-      "status": "handoff",
-      "tool_result": null,
-      "counters_after_step": {
-        "iteration_count": 3,
-        "retry_count": 0,
-        "pending_retry": null,
-        "last_error": null,
-        "stop_reason": "READY_FOR_HUMAN_APPROVAL"
-      }
-    }
-  ],
-  "final_state": {
-    "item": {
-      "item_id": "INV-003"
-    },
-    "quantity": 460,
-    "unit": "piece",
-    "comparison_result": {
-      "item_id": "INV-003",
-      "quantity_base": 460.0,
-      "quotations_considered": [
+      "steps": [
         {
-          "quotation_id": "QUO-1005",
-          "supplier_id": "SUP-03",
-          "valid": true,
-          "excluded": false,
-          "complete": true,
-          "eligible": true,
-          "supplier_name": "Bweyogerere Steel Depot",
-          "delivery_days": 5,
-          "landed_cost_total": 26900000.0,
-          "landed_cost_per_base_unit": 58478.26
+          "step": 1,
+          "plan": {
+            "action": "tool",
+            "tool_name": "create_requisition_draft",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460,
+              "recommended_supplier_id": "SUP-03",
+              "comparison_reference": "comparison:INV-003",
+              "preparing_officer_id": "officer-ashley"
+            }
+          },
+          "status": "continue",
+          "tool_result": {
+            "ok": true,
+            "tool_name": "create_requisition_draft",
+            "result": {
+              "requisition_id": "REQ-2026-0003",
+              "state": "DRAFT",
+              "item_id": "INV-003",
+              "quantity_base": 460.0,
+              "recommended_supplier_id": "SUP-03",
+              "audit_log_reference": "(temporary audit log, discarded after the run)#229552f0-ecc9-400e-bab5-1f997004b8c0"
+            }
+          },
+          "counters_after_step": {
+            "iteration_count": 1,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": null
+          }
         },
         {
-          "quotation_id": "QUO-1006",
-          "supplier_id": "SUP-06",
-          "valid": true,
-          "excluded": false,
-          "complete": true,
-          "eligible": true,
-          "supplier_name": "Ntinda Trade Stores",
-          "delivery_days": 6,
-          "landed_cost_total": 28290000.0,
-          "landed_cost_per_base_unit": 61500.0
-        },
-        {
-          "quotation_id": "QUO-1007",
-          "supplier_id": "SUP-01",
-          "valid": true,
-          "excluded": false,
-          "complete": true,
-          "eligible": true,
-          "supplier_name": "Nakawa Building Supplies",
-          "delivery_days": 4,
-          "landed_cost_total": 32568000.0,
-          "landed_cost_per_base_unit": 70800.0
+          "step": 2,
+          "plan": {
+            "action": "handoff",
+            "reason": "READY_FOR_HUMAN_APPROVAL",
+            "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically."
+          },
+          "status": "handoff",
+          "tool_result": null,
+          "counters_after_step": {
+            "iteration_count": 1,
+            "retry_count": 0,
+            "pending_retry": null,
+            "last_error": null,
+            "stop_reason": "READY_FOR_HUMAN_APPROVAL"
+          }
         }
       ],
-      "ranked_quotations": [
-        {
-          "quotation_id": "QUO-1005",
-          "supplier_id": "SUP-03",
-          "valid": true,
-          "excluded": false,
-          "complete": true,
-          "eligible": true,
-          "supplier_name": "Bweyogerere Steel Depot",
-          "delivery_days": 5,
-          "landed_cost_total": 26900000.0,
-          "landed_cost_per_base_unit": 58478.26
-        },
-        {
-          "quotation_id": "QUO-1006",
-          "supplier_id": "SUP-06",
-          "valid": true,
-          "excluded": false,
-          "complete": true,
-          "eligible": true,
-          "supplier_name": "Ntinda Trade Stores",
-          "delivery_days": 6,
-          "landed_cost_total": 28290000.0,
-          "landed_cost_per_base_unit": 61500.0
-        },
-        {
-          "quotation_id": "QUO-1007",
-          "supplier_id": "SUP-01",
-          "valid": true,
-          "excluded": false,
-          "complete": true,
-          "eligible": true,
-          "supplier_name": "Nakawa Building Supplies",
-          "delivery_days": 4,
-          "landed_cost_total": 32568000.0,
-          "landed_cost_per_base_unit": 70800.0
-        }
-      ],
-      "recommended_supplier_id": "SUP-03",
-      "recommendation_basis": "lowest computed landed cost per base unit",
-      "blocking_flags": [],
-      "approval_level": "director",
-      "minimum_valid_quotations_required": 3
-    },
-    "blocking_flags": [],
-    "draft_id": "REQ-2026-0003",
-    "iteration_count": 3,
-    "last_error": null,
-    "retry_count": 0,
-    "pending_retry": null,
-    "stop_reason": "READY_FOR_HUMAN_APPROVAL",
-    "outstanding": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
-    "preparing_officer_id": "officer-ashley",
-    "reorder_result": {
-      "items_to_reorder": [
-        {
-          "item_id": "INV-003",
-          "item_name": "Deformed reinforcement bar Y12",
-          "current_stock_base": 140.0,
-          "reorder_level_base": 200.0,
-          "target_stock_base": 600.0,
-          "suggested_reorder_quantity_base": 460.0
-        }
-      ],
-      "unassessable_items": []
-    },
-    "tool_history": [
-      {
-        "tool_name": "check_reorder_levels",
-        "arguments": {
+      "final_state": {
+        "item": {
           "item_id": "INV-003"
         },
-        "ok": true,
-        "error": null
-      },
-      {
-        "tool_name": "compare_quotations",
-        "arguments": {
-          "item_id": "INV-003",
-          "quantity_base": 460
+        "quantity": 460,
+        "unit": "piece",
+        "policy_evidence": {
+          "minimum number of quotations required": {
+            "topic": "minimum number of quotations required",
+            "status": "found",
+            "policy_section": "2. Quotation requirement",
+            "rule": "## 2. Quotation requirement\n\n2.1 A minimum of **three valid quotations** must be obtained for any requisition with a total value of UGX 1,000,000 or above.\n2.2 Below UGX 1,000,000, a minimum of **two valid quotations** is required.\n2.3 A quotation is valid only if it is within its stated validity period on the date the requisition is prepared. A quotation whose validity period has lapsed must be excluded from comparison.\n2.4 A quotation must state the item, the quantity, the unit of measure, the rate, and the treatment of value-added tax. A quotation that does not state its unit of measure is incomplete and must not be used until the supplier clarifies it.",
+            "source": "knowledge\\policy\\procurement-policy.md",
+            "score": 0.6746
+          },
+          "approval threshold for requisitions": {
+            "topic": "approval threshold for requisitions",
+            "status": "found",
+            "policy_section": "5. Approval thresholds",
+            "rule": "## 5. Approval thresholds\n\n5.1 Requisitions up to UGX 5,000,000 require approval by the operations manager.\n5.2 Requisitions above UGX 5,000,000 require approval by a director.\n5.3 No requisition is approved by virtue of its value being small. Every requisition requires an approval decision by a person.\n5.4 The officer preparing a requisition may not approve it.",
+            "source": "knowledge\\policy\\procurement-policy.md",
+            "score": 0.751
+          }
         },
-        "ok": true,
-        "error": null
-      },
-      {
-        "tool_name": "create_requisition_draft",
-        "arguments": {
+        "comparison_result": {
           "item_id": "INV-003",
-          "quantity_base": 460,
+          "quantity_base": 460.0,
+          "quotations_considered": [
+            {
+              "quotation_id": "QUO-1005",
+              "supplier_id": "SUP-03",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Bweyogerere Steel Depot",
+              "delivery_days": 5,
+              "landed_cost_total": 26900000.0,
+              "landed_cost_per_base_unit": 58478.26
+            },
+            {
+              "quotation_id": "QUO-1006",
+              "supplier_id": "SUP-06",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Ntinda Trade Stores",
+              "delivery_days": 6,
+              "landed_cost_total": 28290000.0,
+              "landed_cost_per_base_unit": 61500.0
+            },
+            {
+              "quotation_id": "QUO-1007",
+              "supplier_id": "SUP-01",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Nakawa Building Supplies",
+              "delivery_days": 4,
+              "landed_cost_total": 32568000.0,
+              "landed_cost_per_base_unit": 70800.0
+            }
+          ],
+          "ranked_quotations": [
+            {
+              "quotation_id": "QUO-1005",
+              "supplier_id": "SUP-03",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Bweyogerere Steel Depot",
+              "delivery_days": 5,
+              "landed_cost_total": 26900000.0,
+              "landed_cost_per_base_unit": 58478.26
+            },
+            {
+              "quotation_id": "QUO-1006",
+              "supplier_id": "SUP-06",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Ntinda Trade Stores",
+              "delivery_days": 6,
+              "landed_cost_total": 28290000.0,
+              "landed_cost_per_base_unit": 61500.0
+            },
+            {
+              "quotation_id": "QUO-1007",
+              "supplier_id": "SUP-01",
+              "valid": true,
+              "excluded": false,
+              "complete": true,
+              "eligible": true,
+              "supplier_name": "Nakawa Building Supplies",
+              "delivery_days": 4,
+              "landed_cost_total": 32568000.0,
+              "landed_cost_per_base_unit": 70800.0
+            }
+          ],
           "recommended_supplier_id": "SUP-03",
-          "comparison_reference": "comparison:INV-003",
-          "preparing_officer_id": "officer-ashley"
+          "recommendation_basis": "lowest computed landed cost per base unit",
+          "blocking_flags": [],
+          "approval_level": "director",
+          "minimum_valid_quotations_required": 3,
+          "supplier_preference_hint": null
         },
-        "ok": true,
-        "error": null
-      }
-    ]
-  },
+        "blocking_flags": [],
+        "confirmed_supplier": {
+          "supplier_id": "SUP-03",
+          "confirmed_by": "officer-ashley",
+          "confirmed_at": "2026-10-12T17:24:32.823356+00:00"
+        },
+        "draft_id": "REQ-2026-0003",
+        "iteration_count": 1,
+        "last_error": null,
+        "retry_count": 0,
+        "pending_retry": null,
+        "stop_reason": "READY_FOR_HUMAN_APPROVAL",
+        "outstanding": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
+        "preparing_officer_id": "officer-ashley",
+        "reorder_result": {
+          "items_to_reorder": [
+            {
+              "item_id": "INV-003",
+              "item_name": "Deformed reinforcement bar Y12",
+              "current_stock_base": 140.0,
+              "reorder_level_base": 200.0,
+              "target_stock_base": 600.0,
+              "suggested_reorder_quantity_base": 460.0
+            }
+          ],
+          "unassessable_items": []
+        },
+        "tool_history": [
+          {
+            "tool_name": "check_reorder_levels",
+            "arguments": {
+              "item_id": "INV-003"
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "lookup_policy",
+            "arguments": {
+              "topic": "minimum number of quotations required"
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "lookup_policy",
+            "arguments": {
+              "topic": "approval threshold for requisitions"
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "compare_quotations",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460
+            },
+            "ok": true,
+            "error": null
+          },
+          {
+            "tool_name": "create_requisition_draft",
+            "arguments": {
+              "item_id": "INV-003",
+              "quantity_base": 460,
+              "recommended_supplier_id": "SUP-03",
+              "comparison_reference": "comparison:INV-003",
+              "preparing_officer_id": "officer-ashley"
+            },
+            "ok": true,
+            "error": null
+          }
+        ]
+      },
+      "observations": [
+        "Resumed, not restarted: no completed step was repeated, and the iteration count started again at 0 (contract section 2).",
+        "One tool call created REQ-2026-0003 in DRAFT, then hand-off H2 (READY_FOR_HUMAN_APPROVAL). The agent did not submit, approve, contact a supplier or purchase.",
+        "The router passed the officer's confirmation from the case state; without it the draft is refused with SUPPLIER_NOT_CONFIRMED."
+      ]
+    }
+  ],
+  "persisted_audit_events": [
+    {
+      "draft_id": null,
+      "event_type": "AGENT_RUN_STOPPED",
+      "item_id": "INV-003",
+      "iteration_count": 4,
+      "outstanding": "The deterministic comparison recommends SUP-03. An officer must confirm this supplier before the requisition draft is created.",
+      "status": "handoff",
+      "stop_reason": "SUPPLIER_CONFIRMATION_REQUIRED"
+    },
+    {
+      "actor_id": "officer-ashley",
+      "comparison_reference": "comparison:INV-003",
+      "confirmed_supplier_id": "SUP-03",
+      "event_type": "REQUISITION_DRAFT_CREATED",
+      "requisition_id": "REQ-2026-0003",
+      "state": "DRAFT",
+      "supplier_confirmed_by": "officer-ashley"
+    },
+    {
+      "draft_id": "REQ-2026-0003",
+      "event_type": "AGENT_RUN_STOPPED",
+      "item_id": "INV-003",
+      "iteration_count": 1,
+      "outstanding": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
+      "status": "handoff",
+      "stop_reason": "READY_FOR_HUMAN_APPROVAL"
+    }
+  ],
   "observations": [
-    "Goal reached: three tool calls (check_reorder_levels -> compare_quotations -> create_requisition_draft), then a hand-off. The agent did not submit, approve, contact a supplier or purchase.",
-    "The recommended supplier and every figure came from the deterministic tools, not the model (AI Boundary Matrix Principle 1).",
-    "WHY THIS ITEM AND DATE: INV-003 with the clock pinned to 2026-08-27 is the only flag-free case in the corpus. Searching every date from 2026-08-15 to 2026-10-13 for the four items that have quotations, no other combination reaches a draft. See Traces 1b and 1c and the README for why.",
-    "DEVIATION FROM THE CONTRACT: no hand-off H1. The draft was created straight after the comparison, without an officer confirming the supplier. This is known gap 3 in the contract (section 9): the loop does not yet wait for officer confirmation.",
-    "DEVIATION FROM THE CONTRACT: lookup_policy was never called. The contract (section 1, step 2) has the agent retrieve the quotation minimum and approval threshold; default_plan skips it. The policy minimum is still enforced inside compare_quotations (flags), but no policy evidence is gathered for the officer."
+    "Goal reached up to H2 in 5 tool calls over two runs, each within the 6-call limit.",
+    "Every stop was persisted: one AGENT_RUN_STOPPED audit event per run, and the draft's audit event records the confirming officer (persisted_audit_events).",
+    "WHY THIS ITEM AND DATE: INV-003 with the clock pinned to 2026-08-27 is the only flag-free case in the corpus. Searching every date from 2026-08-15 to 2026-10-13 for the four items that have quotations, no other combination reaches a draft. See Traces 1b and 1c and the README for why."
   ]
 }

@@ -121,7 +121,7 @@ The agent halts on any of the following, preserves the case state and hands off 
 
 | Contract code | `stop_reason` in `src/agent/loop.py` | Built? |
 |---|---|---|
-| H1 | `SUPPLIER_CONFIRMATION_REQUIRED` | Yes (tests; end-to-end run) |
+| H1 | `SUPPLIER_CONFIRMATION_REQUIRED` | Yes (Traces 1, 3B and 3C; tests) |
 | H2 | `READY_FOR_HUMAN_APPROVAL` | Yes (Trace 1; tests) |
 | S1 | `ITERATION_LIMIT_REACHED` | Yes (tests) |
 | S2 | `TOOL_FAILED_AFTER_RETRY` | Yes (Trace 3A) |
@@ -218,4 +218,4 @@ Added on 12 Oct after checking the merged Week 5 code and traces (`evidence/trac
 10. ~~**Stops are not persisted.**~~ Built 12 Oct: tool trace and audit log. The `expectedFailure` marker was removed.
 11. **An already-excluded quotation blocks the whole case** (Trace 1b). `compare_quotations` drops QUO-1004 from the ranking but still raises `EXCLUDED_SUPPLIER` as a blocking flag, so the reference case stops at S4. Decide whether this flag should be informational.
 12. **Quotation data is stale** (Trace 1c). No quotation is valid on today's date, so on the real clock every case stops at S4. Refresh the dates before the Week 7 evaluation.
-13. **The Week 5 traces predate items 3, 7, 9 and 10.** They show 3 tool calls and no H1. `scripts/generate_week5_traces.py` needs updating (call `confirm_supplier` and resume, and point the new trace and audit writes at its temporary folder) before the traces are regenerated. This is Ashley's decision.
+13. ~~**The Week 5 traces predate items 3, 7, 9 and 10.**~~ Regenerated 12 Oct: Trace 1 shows H1, the officer's confirmation and a resume to H2; Trace 3 phase B resumes from phase A's saved state; every trace lists its persisted audit events.
