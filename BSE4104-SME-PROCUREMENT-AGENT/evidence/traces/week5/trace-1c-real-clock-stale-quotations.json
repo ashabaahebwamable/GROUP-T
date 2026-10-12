@@ -1,7 +1,7 @@
 {
   "trace_id": "W5-04-trace-1c",
   "title": "Supplementary: the Trace 1 case on the real clock stops at S4",
-  "generated_utc": "2026-10-12T17:37:33+00:00",
+  "generated_utc": "2026-10-12T17:58:09+00:00",
   "scenario": "Identical inputs to Trace 1 with as_of_date=None (today). The synthetic quotations have passed their validity windows, so the comparison returns blocking flags and the loop correctly refuses to draft.",
   "contract_codes": [
     "S4 (policy override needed)"
@@ -21,6 +21,7 @@
   "outcome": {
     "status": "handoff",
     "reason": "POLICY_BLOCKING_FLAGS",
+    "contract_code": "S4",
     "message": "The quotation comparison produced blocking policy or eligibility flags. Human review is required.",
     "tool_calls_used": 4,
     "retries_used": 0,
@@ -227,6 +228,8 @@
     "item": {
       "item_id": "INV-003"
     },
+    "item_description": null,
+    "item_candidates": [],
     "quantity": 460,
     "unit": "piece",
     "as_of_date": null,
@@ -364,6 +367,7 @@
   "persisted_audit_events": [
     {
       "as_of_date": null,
+      "contract_code": "S4",
       "draft_id": null,
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",

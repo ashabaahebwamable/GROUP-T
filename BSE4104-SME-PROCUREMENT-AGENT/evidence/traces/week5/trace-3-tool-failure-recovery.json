@@ -1,7 +1,7 @@
 {
   "trace_id": "W5-04-trace-3",
   "title": "Induced tool failure -> retry once -> safe hand-off -> recovery",
-  "generated_utc": "2026-10-12T17:37:34+00:00",
+  "generated_utc": "2026-10-12T17:58:09+00:00",
   "scenario": "check_reorder_levels is made unavailable with a mock outage (ConnectionError). Shown three ways: a persistent outage that exhausts the single retry, the tool coming back, and a transient outage that the retry survives.",
   "contract_codes": [
     "S2 (tool failed twice)"
@@ -26,6 +26,7 @@
       "outcome": {
         "status": "handoff",
         "reason": "TOOL_FAILED_AFTER_RETRY",
+        "contract_code": "S2",
         "message": "Retry check_reorder_levels later after the tool failure has been investigated.",
         "tool_calls_used": 2,
         "retries_used": 1,
@@ -97,6 +98,8 @@
         "item": {
           "item_id": "INV-003"
         },
+        "item_description": null,
+        "item_candidates": [],
         "quantity": 460,
         "unit": "piece",
         "as_of_date": "2026-08-27",
@@ -144,6 +147,7 @@
       "outcome": {
         "status": "handoff",
         "reason": "SUPPLIER_CONFIRMATION_REQUIRED",
+        "contract_code": "H1",
         "message": "The deterministic comparison recommends SUP-03. An officer must confirm this supplier before the requisition draft is created.",
         "tool_calls_used": 4,
         "retries_used": 0,
@@ -390,6 +394,8 @@
         "item": {
           "item_id": "INV-003"
         },
+        "item_description": null,
+        "item_candidates": [],
         "quantity": 460,
         "unit": "piece",
         "as_of_date": "2026-08-27",
@@ -584,6 +590,7 @@
       "outcome": {
         "status": "handoff",
         "reason": "READY_FOR_HUMAN_APPROVAL",
+        "contract_code": "H2",
         "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
         "tool_calls_used": 1,
         "retries_used": 0,
@@ -624,7 +631,7 @@
               "item_id": "INV-003",
               "quantity_base": 460.0,
               "recommended_supplier_id": "SUP-03",
-              "audit_log_reference": "(temporary audit log, discarded after the run)#ad9203c0-dc3b-452e-b6c0-4ed7d0e2b8be"
+              "audit_log_reference": "(temporary audit log, discarded after the run)#385862cd-328f-4594-9cac-168efc69f54e"
             }
           },
           "counters_after_step": {
@@ -657,6 +664,8 @@
         "item": {
           "item_id": "INV-003"
         },
+        "item_description": null,
+        "item_candidates": [],
         "quantity": 460,
         "unit": "piece",
         "as_of_date": "2026-08-27",
@@ -769,7 +778,7 @@
         "confirmed_supplier": {
           "supplier_id": "SUP-03",
           "confirmed_by": "officer-ashley",
-          "confirmed_at": "2026-10-12T17:37:33.980839+00:00"
+          "confirmed_at": "2026-10-12T17:58:09.413628+00:00"
         },
         "draft_id": "REQ-2026-0003",
         "iteration_count": 1,
@@ -866,6 +875,7 @@
       "outcome": {
         "status": "handoff",
         "reason": "SUPPLIER_CONFIRMATION_REQUIRED",
+        "contract_code": "H1",
         "message": "The deterministic comparison recommends SUP-03. An officer must confirm this supplier before the requisition draft is created.",
         "tool_calls_used": 5,
         "retries_used": 1,
@@ -1141,6 +1151,8 @@
         "item": {
           "item_id": "INV-003"
         },
+        "item_description": null,
+        "item_candidates": [],
         "quantity": 460,
         "unit": "piece",
         "as_of_date": "2026-08-27",
@@ -1325,6 +1337,7 @@
   "persisted_audit_events_phase_b": [
     {
       "as_of_date": "2026-08-27",
+      "contract_code": "H1",
       "draft_id": null,
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",
@@ -1344,6 +1357,7 @@
     },
     {
       "as_of_date": "2026-08-27",
+      "contract_code": "H2",
       "draft_id": "REQ-2026-0003",
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",

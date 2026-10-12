@@ -200,6 +200,7 @@ def _describe(result: dict[str, Any]) -> dict[str, Any]:
     return {
         "status": result["status"],
         "reason": result["reason"],
+        "contract_code": result.get("contract_code"),
         "message": result["message"],
         "tool_calls_used": state["iteration_count"],
         "retries_used": sum(
@@ -477,55 +478,40 @@ def trace_1() -> None:
 
 def trace_2() -> None:
     description = "Portland cement"
-    candidates = [
-        row["item_id"]
-        for row in procurement._read_csv(procurement.INVENTORY_PATH)
-        if description.lower() in row["item_name"].lower()
-    ]
+    inputs = {
+        "item_description": description,
+        "quantity_base": REFERENCE_CASE["quantity_base"],
+        "unit": REFERENCE_CASE["unit"],
+        "preparing_officer_id": REFERENCE_CASE["preparing_officer_id"],
+        "as_of_date": REFERENCE_DATE,
+    }
 
     with Isolated() as iso:
-        result = loop.run_agent(
-            item_id=None,
-            quantity_base=REFERENCE_CASE["quantity_base"],
-            unit=REFERENCE_CASE["unit"],
-            preparing_officer_id=REFERENCE_CASE["preparing_officer_id"],
-            as_of_date=REFERENCE_DATE,
-        )
+        result = loop.run_agent(**inputs)
         ambiguous_audit = iso.audit_events()
 
+    candidates = [c["item_id"] for c in result["state"]["item_candidates"]]
     record = _record(
         "W5-04-trace-2",
         "Ambiguous item description -> hand-back to the officer",
-        "The officer asks to reorder 'Portland cement'. That matches more than one "
-        "inventory item, so no item_id is resolved. The loop must ask which item is "
-        "meant and select none itself.",
+        "The officer asks to reorder 'Portland cement'. The loop matches the text "
+        "against inventory names itself, finds more than one item, lists them in the "
+        "hand-off and selects none.",
         ["S5 (required input missing or ambiguous)"],
-        {
-            "officer_free_text": description,
-            "candidate_items_matching_text": candidates,
-            "item_id_passed_to_loop": None,
-            "quantity_base": REFERENCE_CASE["quantity_base"],
-            "as_of_date": REFERENCE_DATE,
-        },
-        {
-            **_env(REFERENCE_DATE),
-            "note": "The description-to-candidates match above is done by this "
-                    "generator (simple substring match), not by run_agent. run_agent "
-                    "receives item_id=None, which is what an unresolved match looks like.",
-        },
+        inputs,
+        _env(REFERENCE_DATE),
         result,
         [
             "The loop asked which item was meant and selected none: zero tool calls, "
             "item left as None, reason AMBIGUOUS_ITEM. It did not guess between "
             f"{' and '.join(candidates)} (US-02 AC2).",
-            "State was preserved unchanged apart from the stop annotations.",
-            "FINDING: run_agent has no description-matching step. Detecting that the "
-            "text is ambiguous happens before the loop, outside it, so this trace "
-            "relies on the caller to have done that.",
-            "FINDING: the hand-off message is generic ('Which inventory item do you "
-            "mean?') and does not list the candidate items, so the officer is not told "
-            "which items were in contention. Contract section 6 says the hand-off should "
-            "let the officer resume without starting again.",
+            "The hand-off lists the candidates with their names, and they are kept in "
+            "the case state (item_candidates), so the officer can choose one and resume "
+            "without starting again (contract section 6).",
+            "RESOLVES README finding 8 (12 Oct 2026): matching is done by "
+            "run_agent(item_description=...) with loop.match_items, deterministic code "
+            "with no model involved; earlier versions of this trace did the match in "
+            "the generator and passed item_id=None.",
         ],
         ambiguous_audit,
     )

@@ -1,7 +1,7 @@
 {
   "trace_id": "W5-04-trace-1b",
   "title": "The project's reference cement case: the excluded supplier is reported, left out, and the case reaches a draft",
-  "generated_utc": "2026-10-12T17:37:33+00:00",
+  "generated_utc": "2026-10-12T17:58:09+00:00",
   "scenario": "The reference case from synthetic-data-design (cement, 10,000 kg) inside the quotations' validity window. The excluded supplier's quotation (QUO-1004) is flagged for the officer and left out of the count and the ranking; three valid quotations remain, so the case continues.",
   "contract_codes": [
     "H1 (officer must confirm the supplier)",
@@ -26,6 +26,7 @@
       "outcome": {
         "status": "handoff",
         "reason": "SUPPLIER_CONFIRMATION_REQUIRED",
+        "contract_code": "H1",
         "message": "The deterministic comparison recommends SUP-01. An officer must confirm this supplier before the requisition draft is created.",
         "tool_calls_used": 4,
         "retries_used": 0,
@@ -282,6 +283,8 @@
         "item": {
           "item_id": "INV-001"
         },
+        "item_description": null,
+        "item_candidates": [],
         "quantity": 10000,
         "unit": "kg",
         "as_of_date": "2026-09-01",
@@ -473,6 +476,7 @@
       "outcome": {
         "status": "handoff",
         "reason": "READY_FOR_HUMAN_APPROVAL",
+        "contract_code": "H2",
         "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
         "tool_calls_used": 1,
         "retries_used": 0,
@@ -511,7 +515,7 @@
               "item_id": "INV-001",
               "quantity_base": 10000.0,
               "recommended_supplier_id": "SUP-01",
-              "audit_log_reference": "(temporary audit log, discarded after the run)#dc84e3e8-dfda-429f-b266-9c1e8ec2c957"
+              "audit_log_reference": "(temporary audit log, discarded after the run)#794d7065-9310-438f-bcf1-3104442171e9"
             }
           },
           "counters_after_step": {
@@ -544,6 +548,8 @@
         "item": {
           "item_id": "INV-001"
         },
+        "item_description": null,
+        "item_candidates": [],
         "quantity": 10000,
         "unit": "kg",
         "as_of_date": "2026-09-01",
@@ -668,7 +674,7 @@
         "confirmed_supplier": {
           "supplier_id": "SUP-01",
           "confirmed_by": "officer-ashley",
-          "confirmed_at": "2026-10-12T17:37:33.456274+00:00"
+          "confirmed_at": "2026-10-12T17:58:09.107471+00:00"
         },
         "draft_id": "REQ-2026-0003",
         "iteration_count": 1,
@@ -747,6 +753,7 @@
   "persisted_audit_events": [
     {
       "as_of_date": "2026-09-01",
+      "contract_code": "H1",
       "draft_id": null,
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-001",
@@ -766,6 +773,7 @@
     },
     {
       "as_of_date": "2026-09-01",
+      "contract_code": "H2",
       "draft_id": "REQ-2026-0003",
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-001",

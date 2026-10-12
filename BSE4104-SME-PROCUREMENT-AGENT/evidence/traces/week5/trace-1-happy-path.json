@@ -1,7 +1,7 @@
 {
   "trace_id": "W5-04-trace-1",
   "title": "Happy path, end to end: reorder signal -> H1 -> officer confirms -> resume -> requisition draft awaiting a human",
-  "generated_utc": "2026-10-12T17:37:33+00:00",
+  "generated_utc": "2026-10-12T17:58:09+00:00",
   "scenario": "A flagged item is checked, the policy rules are retrieved and quotations are compared by code. The agent stops at H1 for the officer to confirm the supplier, then resumes from the saved case state, creates a DRAFT and stops at H2. It never submits or approves.",
   "contract_codes": [
     "H1 (officer must confirm the supplier)",
@@ -26,6 +26,7 @@
       "outcome": {
         "status": "handoff",
         "reason": "SUPPLIER_CONFIRMATION_REQUIRED",
+        "contract_code": "H1",
         "message": "The deterministic comparison recommends SUP-03. An officer must confirm this supplier before the requisition draft is created.",
         "tool_calls_used": 4,
         "retries_used": 0,
@@ -270,6 +271,8 @@
         "item": {
           "item_id": "INV-003"
         },
+        "item_description": null,
+        "item_candidates": [],
         "quantity": 460,
         "unit": "piece",
         "as_of_date": "2026-08-27",
@@ -458,6 +461,7 @@
       "outcome": {
         "status": "handoff",
         "reason": "READY_FOR_HUMAN_APPROVAL",
+        "contract_code": "H2",
         "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
         "tool_calls_used": 1,
         "retries_used": 0,
@@ -496,7 +500,7 @@
               "item_id": "INV-003",
               "quantity_base": 460.0,
               "recommended_supplier_id": "SUP-03",
-              "audit_log_reference": "(temporary audit log, discarded after the run)#9a52917e-f4d4-4d95-944b-3801ffa352b1"
+              "audit_log_reference": "(temporary audit log, discarded after the run)#91969c0d-9b02-4f3c-9116-6bd54dbcc5fc"
             }
           },
           "counters_after_step": {
@@ -529,6 +533,8 @@
         "item": {
           "item_id": "INV-003"
         },
+        "item_description": null,
+        "item_candidates": [],
         "quantity": 460,
         "unit": "piece",
         "as_of_date": "2026-08-27",
@@ -641,7 +647,7 @@
         "confirmed_supplier": {
           "supplier_id": "SUP-03",
           "confirmed_by": "officer-ashley",
-          "confirmed_at": "2026-10-12T17:37:32.969950+00:00"
+          "confirmed_at": "2026-10-12T17:58:08.930402+00:00"
         },
         "draft_id": "REQ-2026-0003",
         "iteration_count": 1,
@@ -722,6 +728,7 @@
   "persisted_audit_events": [
     {
       "as_of_date": "2026-08-27",
+      "contract_code": "H1",
       "draft_id": null,
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",
@@ -741,6 +748,7 @@
     },
     {
       "as_of_date": "2026-08-27",
+      "contract_code": "H2",
       "draft_id": "REQ-2026-0003",
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",

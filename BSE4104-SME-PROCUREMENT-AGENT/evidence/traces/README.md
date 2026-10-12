@@ -8,7 +8,7 @@ README; this file is the entry point across all of them.
 |------|--------|-----------------|--------|
 | 3 | `week3/` | RAG retrieval traces: two normal policy queries, one genuine refusal (query outside the corpus, zero chunks retrieved) | — |
 | 4 | `week4/` | W4-04/W4-05 test run notes (tool dispatch, state machine) | `week4/w4-04-w4-05-test-run.md` |
-| 5 | `week5/` | Full agent loop traces against the Week 5 Agent Task Contract: happy path, reference case, stale-quotation real-clock run, ambiguous item, and tool-failure recovery. Includes a findings list (9 open issues) for the team to action. | `week5/README.md` |
+| 5 | `week5/` | Full agent loop traces against the Week 5 Agent Task Contract: happy path, reference case, stale-quotation real-clock run, ambiguous item, and tool-failure recovery. Includes a findings list (9 issues; 8 resolved on 12 Oct, quotation coverage still open for Week 7). | `week5/README.md` |
 
 Two files at this level, `audit-log.jsonl` and `retrieval.jsonl`, are live logs the system
 writes to directly rather than curated evidence — see each week's folder for the specific

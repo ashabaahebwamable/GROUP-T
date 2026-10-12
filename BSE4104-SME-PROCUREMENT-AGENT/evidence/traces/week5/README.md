@@ -30,20 +30,21 @@ trace and all audit events go to a temporary folder rather than `data/requisitio
 and the only files written are the ones here. Re-running changes only the generation
 timestamps and the officer's `confirmed_at` time in the saved states.
 
-Three things are simulated, and each trace says so in its `environment` block:
+Two things are set or simulated, and each trace says so in its `environment` block:
 
 - **The as-of date.** Traces 1, 1b, 2 and 3 pass `run_agent(as_of_date=...)`, the
   person-set case input the router uses for quotation validity (no patching). Trace 1c
   uses the real clock.
 - **The outage in Trace 3** is a mock that raises `ConnectionError`.
-- **The ambiguity in Trace 2.** Matching the text "Portland cement" to its two candidates is
-  done by the generator, not by `run_agent`, which receives `item_id=None`.
+- Nothing is simulated in Trace 2: `run_agent(item_description="Portland cement")` does
+  the matching itself.
 
 ## Findings
 
-Each is backed by the trace named. Findings 1 and 3–7 were resolved on 12 Oct 2026 and
-are kept here, struck through, as the record of what the first traces showed. The rest
-are open; the owners decide.
+Each is backed by the trace named. Findings 1 and 3–9 were resolved on 12 Oct 2026 and
+are kept here, struck through, as the record of what the first traces showed. Finding 2
+is resolved for the agent (an as-of date); the coverage part stays open for Week 7.
+Every trace now records the contract code (H1, H2, S1–S8) beside each stop reason.
 
 1. ~~**The reference case cannot reach a draft** (Trace 1b).~~ Resolved by decision:
    `EXCLUDED_SUPPLIER` is now an informational flag. The exclusion is still enforced (the
@@ -67,10 +68,12 @@ are open; the owners decide.
 7. ~~**A blocked or failed call is logged in memory only.**~~ Fixed: every run writes its
    tool calls and stop to the tool trace and the audit log; the `expectedFailure` marker
    was removed.
-8. **The ambiguity hand-off does not list the candidates** (Trace 2), and the description
-   matching sits outside the loop.
-9. **No role check on approval** (`tests/workflow/test_state_machine.py`). Carried from
-   Week 4; contract section 9, item 6.
+8. ~~**The ambiguity hand-off does not list the candidates** (Trace 2).~~ Resolved:
+   `run_agent(item_description=...)` matches inventory names itself, and the hand-off
+   lists INV-001 and INV-002 with their names and keeps them in the case state.
+9. ~~**No role check on approval.**~~ Resolved: approve, reject and query refuse anyone
+   whose role in `data/users.csv` is not approver, and anyone who prepared the
+   requisition; the requisition store logs the refused attempt (US-09).
 
 ## AI use
 
