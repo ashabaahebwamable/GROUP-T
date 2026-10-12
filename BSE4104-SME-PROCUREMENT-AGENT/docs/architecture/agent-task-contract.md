@@ -3,7 +3,7 @@
 **Project:** BSE4104 SME Procurement Preparation Agent (ReqPrep)
 **Week:** 5 — Bounded Agent Loop
 **Owners:** Ashaba Ahebwa Mable (sections 1, 2, 5, 6, 7) · Tendo Caisey (sections 3, 4, 8)
-**Status:** Draft. Mable's sections are written and were checked against the Week 5 code on 12 Oct 2026; they need Tendo's review. Tendo's sections are still to be written. Items needing agreement from both are listed in section 9.
+**Status:** Draft, all sections written. Mable's sections were checked against the Week 5 code on 12 Oct 2026. Sections 3, 4 and 8 were drafted from the code on 12 Oct 2026 because Tendo's text was not in the repository; Tendo to review and either accept or replace them. Items needing agreement from both are listed in section 9.
 
 This contract is what the Week 5 agent loop is built and tested against. "Implement the bounded agent loop" codes it, "Stop-condition and allow-list tests" test it, and the three execution traces demonstrate it. Where this contract and the code disagree, the code is wrong until the contract is changed by agreement.
 
@@ -34,7 +34,7 @@ The agent does not reach that state by itself. Two steps belong to the officer (
 
 **What the agent never does.** It never confirms a supplier, submits, approves, rejects or queries. Approval, rejection and query belong to the approver after the goal is met and are outside the agent loop.
 
-**Built so far (12 Oct).** `run_agent` in `src/agent/loop.py` carries out steps 1, 3 and 5 and stops at H2 (`READY_FOR_HUMAN_APPROVAL`, Trace 1). Step 2 and hand-off H1 are not built: `default_plan` never calls `lookup_policy`, and it creates the draft straight after the comparison without an officer confirming the supplier (section 9, items 3 and 7). Step 6 is available through `submit_for_approval` in the state machine.
+**Built (12 Oct).** `run_agent` in `src/agent/loop.py` follows this table. Run 1 does steps 1–3 and stops at H1 (`SUPPLIER_CONFIRMATION_REQUIRED`). The officer confirms with `confirm_supplier()` (step 4), and run 2 resumes from the saved state, does step 5 and stops at H2 (`READY_FOR_HUMAN_APPROVAL`). Step 6 is `submit_for_approval` in the state machine. Checked end to end with the real tools on 12 Oct (INV-003, 460 pieces, quotation date pinned to 27 Aug): run 1 used 4 tool calls and stopped at H1, and run 2 used 1 and stopped at H2.
 
 ## 2. Maximum iterations (Mable)
 
@@ -43,9 +43,9 @@ The agent does not reach that state by itself. Two steps belong to the officer (
 | Basis | Detail |
 |---|---|
 | Unit counted | One **tool call** dispatched by the router, allowed or blocked. The charter defines the limit as "tool-call iterations". |
-| Happy path | Steps 1–3 and 5 need 4 to 5 calls: reorder check, 1 or 2 policy lookups (quotation minimum, approval threshold), comparison, draft. `run_agent` uses 3 today because it skips step 2 (Trace 1). |
+| Happy path | Run 1 (steps 1–3) needs 4 calls: reorder check, 2 policy lookups (quotation minimum, approval threshold), comparison. Run 2 (step 5) needs 1: the draft. |
 | Headroom | 6 leaves room for one retry (`MAX_TOOL_RETRIES=1`, US-11 criterion 2) without allowing a second loop over the same work. |
-| Resuming after a hand-off | A resumed run starts a new count of 6. The case state carries over; the counter does not. Not built yet: `run_agent` always starts a new case state (section 9, item 9). |
+| Resuming after a hand-off | A resumed run starts a new count of 6. The case state carries over; the counter does not. Built: `run_agent(state=...)`. |
 | Model-call budget | Each tool call needs a model turn, so one full case uses about 7–9 Gemini requests. The free tier allows 20 a day, about two full cases. `run_agent` currently uses a rule-based planner and makes no model calls, so this budget applies once a model planner is connected. |
 | Configuration | `.env.example` sets `MAX_AGENT_ITERATIONS=6` and `MAX_TOOL_RETRIES=1`; `src.agent.loop.run_agent` reads these values and allows explicit caller overrides. |
 
@@ -53,13 +53,41 @@ The agent does not reach that state by itself. Two steps belong to the officer (
 
 The charter and project definition still say "[PLACEHOLDER: proposed 6]", and there is no Week 2 sign-off for it in the repository. Once Tendo agrees, this section is the sign-off, and both placeholders are replaced with 6.
 
-## 3. Approved tools (Tendo)
+## 3. Approved tools (Tendo, drafted from the code for review)
 
-*To be written by Tendo.* For each of the four tools: when the agent may call it, its precondition, and what it adds to the case state. Contracts are in `tool-catalogue.md`; this section adds the order and preconditions for the loop. In particular, `create_requisition_draft` may be called only after hand-off H1 has recorded a confirmed supplier.
+The allow-list is the four tools in `TOOL_REGISTRY` (`src/agent/tools_router.py`). Their input and output contracts are in `tool-catalogue.md`. This section adds when the loop may call each one. All four are deterministic: the model only chooses when to call them and with which arguments, and the router validates both the arguments and the output.
 
-## 4. State fields (Tendo)
+| Order | Tool | The planner may call it when | It adds to the case state | Side effects |
+|---|---|---|---|---|
+| 1 | `check_reorder_levels` | An item ID is known and there is no reorder result yet. | `reorder_result` | None (read-only) |
+| 2 | `lookup_policy` | The item needs reordering, the quantity is known, and a rule in `POLICY_TOPICS` has no evidence yet. Called once per topic: the quotation minimum and the approval threshold. | `policy_evidence[topic]` | Appends the retrieval to `evidence/traces/retrieval.jsonl` (Week 3 log) |
+| 3 | `compare_quotations` | Both policy rules were found and there is no comparison yet. | `comparison_result`, `blocking_flags` | None. The router attaches any confirmed supplier preference as `supplier_preference_hint` after ranking |
+| 4 | `create_requisition_draft` | The comparison has a recommendation and no blocking flags, an officer has confirmed that exact supplier at H1, a preparing officer ID is known, and no draft exists yet. | `draft_id` | Writes one `DRAFT` row to `data/requisitions.csv` and a `REQUISITION_DRAFT_CREATED` audit event, both recording the confirming officer |
 
-*To be written by Tendo.* The case state carried between steps and kept on every stop: item, quantity and unit, policy evidence, comparison result, blocking flags, confirmed supplier and confirming officer, draft ID, tool-call count, retry count, last error, stop reason. For each field, state whether it is set by code or by a person. The model sets none of them directly.
+Preconditions the router enforces for the draft, whatever the planner asks for: it recomputes the comparison and refuses the draft if there are blocking flags (`POLICY_BLOCKING_FLAGS`), if the requested supplier differs from the computed one (`MODEL_VALUE_MISMATCH`), or if no officer confirmation for that supplier is passed (`SUPPLIER_NOT_CONFIRMED`). The confirmation is passed by code from the case state. It is not in any tool schema, so the model cannot supply it.
+
+Not tools: `confirm_supplier` (officer, step 4), `record_supplier_preference` (officer, memory), and every state-machine transition (`submit_for_approval`, `approve`, `reject`, `query`, `halt`). Any other tool name is blocked with `TOOL_NOT_ALLOWED` (stop S3).
+
+## 4. State fields (Tendo, drafted from the code for review)
+
+The case state is the dictionary built by `initial_case_state()` in `src/agent/loop.py`. Every stop returns it unchanged, and `run_agent(state=...)` accepts it back to resume. The model sets none of these fields directly: a model planner can only propose a tool call or a hand-off.
+
+| Field | Content | Set by |
+|---|---|---|
+| `item` | `{"item_id": ...}`, or `None` if no item was identified | Person (case input) |
+| `quantity`, `unit` | Requested quantity in base units, and its unit | Person (case input, or when resuming after `QUANTITY_CONFIRMATION_REQUIRED`) |
+| `preparing_officer_id` | The officer preparing the requisition | Person (case input) |
+| `reorder_result` | Output of `check_reorder_levels` | Code (tool result) |
+| `policy_evidence` | One `lookup_policy` result per topic: status, section, rule text, source | Code (tool result) |
+| `comparison_result` | Output of `compare_quotations`, including the recommended supplier and any preference hint | Code (tool result) |
+| `blocking_flags` | Blocking flags from the comparison, without duplicates | Code (tool result) |
+| `confirmed_supplier` | `supplier_id`, `confirmed_by`, `confirmed_at`, recorded at H1 | Person, through `confirm_supplier()` |
+| `draft_id` | Requisition ID of the created `DRAFT` | Code (tool result) |
+| `iteration_count` | Tool calls in this run, including blocked calls and retries. Reset to 0 when a run resumes | Code (loop) |
+| `retry_count`, `pending_retry` | Retries used for the current failed call, and the call to repeat | Code (loop) |
+| `last_error` | Message of the last failed tool call, cleared on success | Code (loop) |
+| `tool_history` | Every call in every run of the case: tool, arguments, ok, error | Code (loop) |
+| `stop_reason`, `outstanding` | Why the run stopped and the next step, in words | Code (loop and planner rules) |
 
 ## 5. Stop conditions (Mable)
 
@@ -89,18 +117,18 @@ The agent halts on any of the following, preserves the case state and hands off 
 
 **Retry rule.** Only S2 and the argument-error case above allow a retry, and only one. S3 to S7 are never retried, because retrying them would mean the agent working around a control.
 
-**Codes in `run_agent` today (12 Oct).** The loop records a descriptive `stop_reason` rather than the contract code. Traces and tests use this mapping until the code emits the contract codes (section 9, item 8).
+**Codes in `run_agent` (12 Oct).** The loop records a descriptive `stop_reason` rather than the contract code. Traces and tests use this mapping until the code emits the contract codes (section 9, item 8).
 
 | Contract code | `stop_reason` in `src/agent/loop.py` | Built? |
 |---|---|---|
-| H1 | none | **No.** The draft is created without a stop (section 9, item 3) |
-| H2 | `READY_FOR_HUMAN_APPROVAL` | Yes (Trace 1) |
+| H1 | `SUPPLIER_CONFIRMATION_REQUIRED` | Yes (tests; end-to-end run) |
+| H2 | `READY_FOR_HUMAN_APPROVAL` | Yes (Trace 1; tests) |
 | S1 | `ITERATION_LIMIT_REACHED` | Yes (tests) |
 | S2 | `TOOL_FAILED_AFTER_RETRY` | Yes (Trace 3A) |
 | S3 | `TOOL_NOT_ALLOWED` | Yes; the run stops and is not retried (tests) |
 | S4 | `POLICY_BLOCKING_FLAGS`, `NO_RECOMMENDED_SUPPLIER` | Yes (Traces 1b, 1c) |
 | S5 | `AMBIGUOUS_ITEM`, `ITEM_NOT_FOUND`, `REORDER_STATUS_UNASSESSABLE`, `MISSING_QUANTITY`, `QUANTITY_CONFIRMATION_REQUIRED`, `MISSING_PREPARING_OFFICER`, `NO_REORDER_REQUIRED` | Yes (Trace 2). `NO_REORDER_REQUIRED` ends with status `stopped`, not `handoff`, because there is nothing to hand off |
-| S6 | none | **No.** `lookup_policy` is never called (section 9, item 7) |
+| S6 | `POLICY_NOT_FOUND` | Yes (tests) |
 | S7 | `MODEL_VALUE_MISMATCH` | Yes, in the router; the rule-based planner cannot trigger it |
 | S8 | `INVALID_PLAN_ACTION` covers an unusable planner output | Partly. No model is called by `run_agent`, so there is no model-API failure path yet |
 
@@ -125,15 +153,13 @@ Every stop, planned or failure, ends with the same hand-off package. Its purpose
 - The model may write the reason sentence, but the stop code, completed steps and state come from code.
 - After a hand-off the agent does nothing further until a person acts.
 
-**Built so far (12 Oct).** Every `run_agent` stop returns `status`, `reason` (the `stop_reason`), `message`, `outstanding` (the next step, in words), the full case `state`, the in-memory `trace`, and `state_before_last_step`. Tests confirm the state is kept unchanged on an iteration-limit halt, a hand-off, a missing item, a blocked tool and an exhausted retry. Still missing:
-- The stop is not written to `evidence/traces/tool-calls.jsonl` or the audit log; `run_agent` returns the trace but writes no file. This is the test marked `expectedFailure` (section 9, item 10).
+**Built (12 Oct).** Every `run_agent` stop returns `status`, `reason` (the `stop_reason`), `message`, `outstanding` (the next step, in words), the full case `state`, the in-memory `trace`, `state_before_last_step` and a `run_id`. Each run appends its tool calls and an `agent_stop` line to `evidence/traces/tool-calls.jsonl`, and an `AGENT_RUN_STOPPED` event to `evidence/traces/audit-log.jsonl`. The officer resumes by passing the saved state back to `run_agent(state=...)`, and abandons with `halt()` in the state machine. Tests confirm the state is kept unchanged on an iteration-limit halt, a hand-off, a missing item, a blocked tool and an exhausted retry. Still missing:
 - There is no "what was completed" list as such; it has to be read from `tool_history` and the trace.
-- The officer cannot resume: `run_agent` cannot accept a saved state (section 9, item 9). "Abandon" is available as `halt()` in the state machine, which moves an active case to `HALTED` with a reason.
 - The ambiguity hand-off does not list the candidate items (Trace 2).
 
 ## 7. Prohibited actions (Mable)
 
-Restated from the brief and the AI boundary matrix. "Status" records whether the control exists in code (checked 12 Oct 2026, after the Week 5 loop, case store and memory were merged).
+Restated from the brief and the AI boundary matrix. "Status" records whether the control exists in code (checked 12 Oct 2026).
 
 | Prohibited action | Matrix row | How it is prevented | Status |
 |---|---|---|---|
@@ -141,28 +167,55 @@ Restated from the brief and the AI boundary matrix. "Status" records whether the
 | **Supplier contact** through any channel | 10, Principle 3 | No email, messaging or network channel to a supplier exists (ABS). The only outbound connections are to the Gemini API and, on first use, the Hugging Face download of the embedding model. | Holds |
 | **Approval**: approving, rejecting or querying a requisition | 8, 13, 14 | The state machine has no `DRAFT` → `APPROVED` path, approval requires an approver ID, and `requisition_store` is not a model tool (FSM, ALLOW). | Holds. The state machine now also has `OPEN` and `HALTED`; still no path into `APPROVED` except `approve()` from `PENDING_APPROVAL`. Role check (officer vs approver, US-09) not yet built |
 | **Memory write without confirmation** | 19 | Any durable preference is written only after explicit human confirmation, recorded with the confirming identity and timestamp (CODE, LOG). | **Holds.** `src/memory/supplier_preferences.py`: `record_supplier_preference` refuses unless `confirmed=True` and a confirmer ID is given, and stores the confirmer and a UTC timestamp. It is not a model tool (`tests/memory/test_supplier_preferences.py`). The router attaches the stored preference to the comparison result as a hint after ranking, and `compare_quotations` does not read memory; no test checks this yet |
-| Confirming the supplier or submitting on the officer's behalf | 5, 10 | Hand-offs H1 and H2; the draft tool requires a confirmed supplier. | **Not yet enforced for the supplier.** `run_agent` creates the draft without officer confirmation (Trace 1; section 9, item 3). Submitting holds: the loop has no submit step and stops at H2 |
+| Confirming the supplier or submitting on the officer's behalf | 5, 10 | Hand-offs H1 and H2; the draft tool requires a confirmed supplier. | **Holds.** The loop stops at H1, only `confirm_supplier()` (an officer action, not a tool) records a confirmation, and the router refuses a draft without one (`SUPPLIER_NOT_CONFIRMED`). The loop has no submit step and stops at H2 |
 | Using a model-produced figure | 4, Principle 1 | Figures come only from deterministic tools; the router refuses a supplier that differs from the computed one. | Holds for the supplier; full numeral check planned for Week 8 |
 | Calling a tool outside the allow-list | 9 | Router allow-list (ALLOW); the run then stops (S3). | **Holds in `run_agent`**: the call is blocked before execution and the run stops without retry (tests). Not yet in `run_bounded_tool_agent`, which returns the error to the model (section 9, item 4) |
 
-## 8. Enforcement mapping (Tendo)
+## 8. Enforcement mapping (Tendo, drafted from the code for review)
 
-*To be written by Tendo.* For each stop condition in section 5 and each prohibited action in section 7, name the code that enforces it and whether it exists yet. Known gaps from section 9 should appear here as build items for "Implement the bounded agent loop".
+Where each stop condition and prohibited action is enforced, and the test that shows it. Paths are under `src/` and `tests/`.
+
+**Stop conditions**
+
+| Code | Enforced in | Test | Status |
+|---|---|---|---|
+| H1 | `agent/loop.py` `default_plan` (stops after the comparison); `agent/tools_router.py` `dispatch_tool` (refuses an unconfirmed draft) | `test_agent_loop.py` (plan-and-observe, supplier confirmation); `test_week4_gap_fixes.py` (draft without confirmation) | Built |
+| H2 | `agent/loop.py` `default_plan` | `test_agent_loop.py` (plan-and-observe) | Built |
+| S1 | `agent/loop.py` `_run_loop`, limit from `MAX_AGENT_ITERATIONS` | `agent/test_stop_conditions_and_allowlist.py` `IterationLimitTests` | Built |
+| S2 | `agent/loop.py` `_run_loop`, `RETRYABLE_TOOL_ERRORS`, `MAX_TOOL_RETRIES` | `test_agent_loop.py` (retry tests); `test_stop_conditions_and_allowlist.py` (retry exhausted) | Built |
+| S3 | `agent/tools_router.py` allow-list; `agent/loop.py` stops on a non-retryable error | `test_stop_conditions_and_allowlist.py` `AllowListTests` | Built in `run_agent`; not in `run_bounded_tool_agent` (section 9, item 4) |
+| S4 | `agent/loop.py` `default_plan`; router refuses a draft with flags | `test_stop_conditions_and_allowlist.py` (hand-off halt); `test_week4_gap_fixes.py` | Built |
+| S5 | `agent/loop.py` `default_plan` | `test_agent_loop.py` (ambiguous item, resume) | Built |
+| S6 | `agent/loop.py` `default_plan` (`POLICY_TOPICS`) | `test_agent_loop.py` `PolicyStepTests` | Built |
+| S7 | `agent/tools_router.py` `check_model_vs_computed` | `test_week4_gap_fixes.py` (supplier different from computed) | Built in the router |
+| S8 | `agent/loop.py` (`INVALID_PLAN_ACTION`); `agent/tools_router.py` (`MODEL_NO_CANDIDATES`) | — | Partly built: needs a model planner in `run_agent` |
+| Hand-off package | `agent/loop.py` `run_agent`, `_persist_run`, `_resumable_state` | `test_agent_loop.py` `PersistenceTests`, `ResumeTests`; `test_stop_conditions_and_allowlist.py` `StatePreservedAfterHaltTests` | Built |
+
+**Prohibited actions**
+
+| Action | Enforced in | Test | Status |
+|---|---|---|---|
+| Purchase, supplier contact | Absence: no such tool or code path | `test_stop_conditions_and_allowlist.py` (`issue_purchase_order`, `make_payment`, `send_supplier_email` blocked) | Holds |
+| Approval | `workflow/state_machine.py`; not in `TOOL_REGISTRY` | `test_stop_conditions_and_allowlist.py` (`approve_requisition` blocked); `workflow/test_state_machine.py` | Holds; role check not built (section 9, item 6) |
+| Memory write without confirmation | `memory/supplier_preferences.py` | `memory/test_supplier_preferences.py` | Holds |
+| Confirming the supplier for the officer | `agent/loop.py` `confirm_supplier`; `agent/tools_router.py` (`SUPPLIER_NOT_CONFIRMED`) | `test_agent_loop.py` `SupplierConfirmationTests`; `test_week4_gap_fixes.py` | Holds |
+| Model-produced figure | `agent/tools_router.py` `check_model_vs_computed` | `test_week4_gap_fixes.py` | Holds for the supplier; numerals in Week 8 |
 
 ## 9. Decisions and gaps for Tendo to confirm
 
 1. **Iteration limit of 6 tool calls, 1 retry** (section 2). Agree, then remove the placeholders in `project-charter.md` and `project-definition.md`.
-2. **The model-facing loop still counts rounds, not tool calls.** `run_bounded_tool_agent` uses `max_tool_rounds=2`, and one round can contain several tool calls. The deterministic `run_agent` in `src.agent.loop` now enforces the configured tool-call limit and single retry; the model-facing entry point still needs the same controls.
-3. **Hand-off H1 is missing.** The router will create a draft without an officer-confirmed supplier, and `run_agent` does so in Trace 1. `create_requisition_draft` should require a confirmed-supplier record from H1, and `default_plan` should stop at H1 after the comparison.
+2. **The model-facing loop still counts rounds, not tool calls.** `run_bounded_tool_agent` uses `max_tool_rounds=2`, and one round can contain several tool calls. The deterministic `run_agent` in `src.agent.loop` enforces the configured tool-call limit and single retry; the model-facing entry point still needs the same controls.
+3. ~~**Hand-off H1 is missing.**~~ Built 12 Oct: `default_plan` stops at H1, `confirm_supplier()` records the officer, and the router refuses a draft without that confirmation. Through `run_bounded_tool_agent` a draft is now always refused, because the model cannot supply the confirmation.
 4. **A blocked tool request does not stop the model-facing run** (S3). `run_agent` stops and hands off after its router blocks a call; `run_bounded_tool_agent` still returns the error to the model and continues.
-5. **The model-facing loop has no retry logic or hand-off package.** `run_agent` tracks retry count, preserves its case state and reports the outstanding action; the model-facing entry point still needs this behaviour.
+5. **The model-facing loop has no retry logic or hand-off package.** `run_agent` has both; the model-facing entry point still needs them.
 6. **Role check for approval** (US-09) is not built. This sits with Isaac's state-machine review.
 
 Added on 12 Oct after checking the merged Week 5 code and traces (`evidence/traces/week5/README.md`, findings 1–9):
 
-7. **`lookup_policy` is never called** (step 2, stop S6). `default_plan` goes from the reorder check straight to the comparison, so the case has no policy evidence and S6 cannot occur.
+7. ~~**`lookup_policy` is never called.**~~ Built 12 Oct: step 2 looks up the quotation minimum and the approval threshold, and stops with `POLICY_NOT_FOUND` (S6) when either has no evidence.
 8. **Stop codes.** The code uses descriptive `stop_reason` strings (section 5 mapping). Decide whether to emit the contract codes as well, or to adopt the strings as the codes.
-9. **`run_agent` cannot resume.** It always builds a new case state, so a preserved state cannot be handed back after the officer acts (sections 2 and 6).
-10. **Stops are not persisted.** `run_agent` writes no trace file or audit entry for a stop (section 6; `expectedFailure` test in `tests/agent/test_stop_conditions_and_allowlist.py`).
+9. ~~**`run_agent` cannot resume.**~~ Built 12 Oct: `run_agent(state=...)`.
+10. ~~**Stops are not persisted.**~~ Built 12 Oct: tool trace and audit log. The `expectedFailure` marker was removed.
 11. **An already-excluded quotation blocks the whole case** (Trace 1b). `compare_quotations` drops QUO-1004 from the ranking but still raises `EXCLUDED_SUPPLIER` as a blocking flag, so the reference case stops at S4. Decide whether this flag should be informational.
 12. **Quotation data is stale** (Trace 1c). No quotation is valid on today's date, so on the real clock every case stops at S4. Refresh the dates before the Week 7 evaluation.
+13. **The Week 5 traces predate items 3, 7, 9 and 10.** They show 3 tool calls and no H1. `scripts/generate_week5_traces.py` needs updating (call `confirm_supplier` and resume, and point the new trace and audit writes at its temporary folder) before the traces are regenerated. This is Ashley's decision.
