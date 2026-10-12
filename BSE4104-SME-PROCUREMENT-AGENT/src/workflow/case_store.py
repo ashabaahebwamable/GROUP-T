@@ -19,6 +19,7 @@ from src.workflow.state_machine import (
     start_draft,
     submit_for_approval,
 )
+from src.workflow.users import role_of
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -293,11 +294,14 @@ class CaseStore:
             elif action == "submit":
                 submit_for_approval(requisition)
             elif action == "approve":
-                approve(requisition, approver_id=actor_id or "")
+                approve(requisition, approver_id=actor_id or "",
+                        approver_role=role_of(actor_id))
             elif action == "reject":
-                reject(requisition, approver_id=actor_id or "", reason=reason or "")
+                reject(requisition, approver_id=actor_id or "",
+                       approver_role=role_of(actor_id), reason=reason or "")
             elif action == "query":
-                query(requisition, approver_id=actor_id or "", reason=reason or "")
+                query(requisition, approver_id=actor_id or "",
+                      approver_role=role_of(actor_id), reason=reason or "")
             elif action == "halt":
                 halt(requisition, reason=reason or "")
             else:

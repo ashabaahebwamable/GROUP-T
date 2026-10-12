@@ -71,20 +71,20 @@ class CaseStoreTests(unittest.TestCase):
         self.store.create_case("CASE-003")
         with self.assertRaises(IllegalStateTransitionError):
             self.store.transition_case(
-                "CASE-003", "approve", actor_id="approver-1"
+                "CASE-003", "approve", actor_id="MANAGER-1"
             )
 
         self.store.transition_case("CASE-003", "start_draft")
         self.store.transition_case("CASE-003", "submit")
         approved = self.store.transition_case(
-            "CASE-003", "approve", actor_id="approver-1"
+            "CASE-003", "approve", actor_id="MANAGER-1"
         )
         events = self.store.get_case_events("CASE-003")
 
         self.assertEqual(approved.state, "APPROVED")
-        self.assertEqual(approved.decided_by, "approver-1")
+        self.assertEqual(approved.decided_by, "MANAGER-1")
         self.assertIsNotNone(approved.decided_at)
-        self.assertEqual(events[-1]["actor_id"], "approver-1")
+        self.assertEqual(events[-1]["actor_id"], "MANAGER-1")
 
     def test_halted_case_cannot_be_resumed(self):
         self.store.create_case("CASE-004")

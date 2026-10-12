@@ -11,7 +11,11 @@ from src.agent.tools_router import TOOL_REGISTRY, dispatch_tool, run_bounded_too
 from src.tools.policy import lookup_policy
 from src.tools.procurement import PROJECT_ROOT, REQUISITIONS_PATH, compare_quotations
 from src.workflow.requisition_store import load_requisition, transition_requisition
-from src.workflow.state_machine import BlockingFlagsUnresolvedError, IllegalStateTransitionError
+from src.workflow.state_machine import (
+    BlockingFlagsUnresolvedError,
+    IllegalStateTransitionError,
+    UnauthorisedActionError,
+)
 
 
 class FakeRouter:
@@ -186,10 +190,12 @@ class ToolTraceFileTests(unittest.TestCase):
             result = run_bounded_tool_agent("Approve it.", trace_path=trace_path)
             lines = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
 
-        self.assertEqual(len(lines), 1)
-        self.assertEqual(lines[0]["run_id"], result["run_id"])
+        self.assertEqual(len(lines), 2)  # the blocked call, then the stop (S3)
+        self.assertEqual({line["run_id"] for line in lines}, {result["run_id"]})
         self.assertEqual(lines[0]["tool_name"], "approve_requisition")
         self.assertEqual(lines[0]["status"], "blocked")
+        self.assertEqual(lines[1]["event"], "agent_stop")
+        self.assertEqual(lines[1]["contract_code"], "S3")
         self.assertEqual(result["model_checks"], [])
 
 
@@ -244,6 +250,20 @@ class RequisitionStoreTests(unittest.TestCase):
     def test_stored_blocking_flags_refuse_submission(self):
         with self.assertRaises(BlockingFlagsUnresolvedError):
             self._transition("REQ-2", "submit", actor_id="OFFICER-1")
+
+    def test_officer_approval_is_refused_logged_and_not_written(self):
+        """US-09 criterion 1: refused and the attempt is logged."""
+        self._transition("REQ-1", "submit", actor_id="OFFICER-1")
+        before = self.requisitions.read_text(encoding="utf-8")
+
+        with self.assertRaises(UnauthorisedActionError):
+            self._transition("REQ-1", "approve", actor_id="OFFICER-1")
+
+        self.assertEqual(self.requisitions.read_text(encoding="utf-8"), before)
+        events = [json.loads(line) for line in self.audit.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(events[-1]["event_type"], "REQUISITION_ACTION_REFUSED")
+        self.assertEqual(events[-1]["actor_id"], "OFFICER-1")
+        self.assertEqual(events[-1]["actor_role"], "officer")
 
     def test_store_is_not_a_model_tool(self):
         self.assertNotIn("transition_requisition", TOOL_REGISTRY)

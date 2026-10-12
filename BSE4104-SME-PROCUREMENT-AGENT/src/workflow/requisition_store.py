@@ -19,11 +19,13 @@ from typing import Any
 from src.tools.procurement import AUDIT_LOG_PATH, REQUISITIONS_PATH
 from src.workflow.state_machine import (
     Requisition,
+    UnauthorisedActionError,
     approve,
     query,
     reject,
     submit_for_approval,
 )
+from src.workflow.users import role_of
 
 
 def _parse_flags(value: str | None) -> list[str]:
@@ -72,28 +74,47 @@ def transition_requisition(
     reason: str | None = None,
     requisitions_path: Path | str = REQUISITIONS_PATH,
     audit_log_path: Path | str = AUDIT_LOG_PATH,
+    users_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """Apply a human action (submit, approve, reject, query) and persist it.
 
     All rules come from ``state_machine``: illegal transitions, unresolved
     blocking flags and missing approver IDs raise before anything is written.
+    The actor's role is looked up in the user registry, never taken from the
+    caller. An unauthorised decision is refused and the attempt is written to
+    the audit log (US-09 criterion 1).
     """
     if not actor_id or not str(actor_id).strip():
         raise ValueError("actor_id is required")
 
     requisition = load_requisition(requisition_id, requisitions_path=requisitions_path)
     previous_state = requisition.state
+    role = role_of(actor_id, users_path=users_path)
 
-    if action == "submit":
-        submit_for_approval(requisition)
-    elif action == "approve":
-        approve(requisition, approver_id=actor_id)
-    elif action == "reject":
-        reject(requisition, approver_id=actor_id, reason=reason or "")
-    elif action == "query":
-        query(requisition, approver_id=actor_id, reason=reason or "")
-    else:
-        raise ValueError(f"Unknown action: {action!r}")
+    try:
+        if action == "submit":
+            submit_for_approval(requisition)
+        elif action == "approve":
+            approve(requisition, approver_id=actor_id, approver_role=role)
+        elif action == "reject":
+            reject(requisition, approver_id=actor_id, approver_role=role, reason=reason or "")
+        elif action == "query":
+            query(requisition, approver_id=actor_id, approver_role=role, reason=reason or "")
+        else:
+            raise ValueError(f"Unknown action: {action!r}")
+    except UnauthorisedActionError as exc:
+        _append_audit(audit_log_path, {
+            "event_id": str(uuid.uuid4()),
+            "event_type": "REQUISITION_ACTION_REFUSED",
+            "requisition_id": requisition_id,
+            "action": action,
+            "state": previous_state,
+            "actor_id": actor_id,
+            "actor_role": role,
+            "reason": str(exc),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        raise
 
     path = Path(requisitions_path)
     fieldnames, rows = _read(path)
@@ -120,10 +141,7 @@ def transition_requisition(
         "reason": reason,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    audit_path = Path(audit_log_path)
-    audit_path.parent.mkdir(parents=True, exist_ok=True)
-    with audit_path.open("a", encoding="utf-8") as audit_file:
-        audit_file.write(json.dumps(audit_event, sort_keys=True) + "\n")
+    _append_audit(audit_log_path, audit_event)
 
     return {
         "requisition_id": requisition_id,
@@ -132,6 +150,13 @@ def transition_requisition(
         "decided_by": requisition.decided_by,
         "audit_event_id": audit_event["event_id"],
     }
+
+
+def _append_audit(audit_log_path: Path | str, event: dict[str, Any]) -> None:
+    audit_path = Path(audit_log_path)
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    with audit_path.open("a", encoding="utf-8") as audit_file:
+        audit_file.write(json.dumps(event, sort_keys=True) + "\n")
 
 
 __all__ = ["load_requisition", "transition_requisition"]

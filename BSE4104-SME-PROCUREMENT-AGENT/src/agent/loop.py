@@ -27,6 +27,7 @@ import uuid
 from dotenv import load_dotenv
 
 from src.agent import tools_router
+from src.agent.stop_codes import RETRYABLE_TOOL_ERRORS, contract_code
 from src.agent.tools_router import dispatch_tool
 from src.tools import procurement
 
@@ -35,11 +36,6 @@ load_dotenv()
 
 DEFAULT_MAX_AGENT_ITERATIONS = 6
 DEFAULT_MAX_TOOL_RETRIES = 1
-RETRYABLE_TOOL_ERRORS = {
-    "TOOL_ARGUMENT_ERROR",
-    "TOOL_EXECUTION_ERROR",
-    "TOOL_OUTPUT_INVALID",
-}
 
 # Contract section 1, step 2: the rules every case needs before quotations
 # are compared. Each is one lookup_policy call.
@@ -71,6 +67,8 @@ def initial_case_state(
     """
     return {
         "item": {"item_id": item_id} if item_id else None,
+        "item_description": None,
+        "item_candidates": [],
         "quantity": quantity_base,
         "unit": unit,
         "as_of_date": as_of_date,
@@ -128,6 +126,33 @@ def default_plan(state: dict[str, Any]) -> dict[str, Any]:
     # ---------------------------------------------------------------
     # Ambiguous or missing item
     # ---------------------------------------------------------------
+    candidates = state.get("item_candidates") or []
+    description = state.get("item_description")
+
+    if not item_id and candidates:
+        listed = "; ".join(
+            f"{c['item_id']} ({c['item_name']})" for c in candidates
+        )
+        return {
+            "action": "handoff",
+            "reason": "AMBIGUOUS_ITEM",
+            "message": (
+                f"Which inventory item do you mean? '{description}' matches "
+                f"{len(candidates)} items: {listed}. No item has been "
+                f"selected; please choose one."
+            ),
+        }
+
+    if not item_id and description:
+        return {
+            "action": "handoff",
+            "reason": "ITEM_NOT_FOUND",
+            "message": (
+                f"No inventory item matches '{description}'. Please check the "
+                f"description or give the item ID."
+            ),
+        }
+
     if not item_id:
         return {
             "action": "handoff",
@@ -417,6 +442,24 @@ def observe_tool_result(
 
 
 # ---------------------------------------------------------------------------
+# Item matching (US-02)
+# ---------------------------------------------------------------------------
+
+def match_items(description: str) -> list[dict[str, str]]:
+    """Return the inventory items whose name contains every word of
+    ``description`` (case-insensitive). Deterministic: no model involved."""
+    words = str(description or "").lower().split()
+    if not words:
+        return []
+    rows = procurement._read_csv(procurement.INVENTORY_PATH)
+    return [
+        {"item_id": row["item_id"], "item_name": row["item_name"]}
+        for row in rows
+        if all(word in row.get("item_name", "").lower() for word in words)
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Officer action at hand-off H1
 # ---------------------------------------------------------------------------
 
@@ -606,6 +649,7 @@ def run_agent_step(
 def run_agent(
     *,
     item_id: str | None = None,
+    item_description: str | None = None,
     quantity_base: float | int | None = None,
     unit: str | None = None,
     preparing_officer_id: str | None = None,
@@ -632,6 +676,11 @@ def run_agent(
     for evaluations and demos on synthetic data. It is kept in the case state
     so a resumed run uses the same date. ``None`` means today.
 
+    ``item_description`` (instead of ``item_id``) is matched to inventory
+    names by :func:`match_items`. One match selects that item; several stop
+    with ``AMBIGUOUS_ITEM`` listing the candidates; none stops with
+    ``ITEM_NOT_FOUND``. The loop never picks between candidates.
+
     Every run appends its tool calls and its stop to ``trace_path`` (default
     ``evidence/traces/tool-calls.jsonl``) and its stop to ``audit_log_path``
     (default ``evidence/traces/audit-log.jsonl``).
@@ -657,6 +706,15 @@ def run_agent(
         raise ValueError("max_tool_retries must be zero or greater.")
 
     if state is None:
+        if item_id is not None and item_description is not None:
+            raise ValueError("Pass either item_id or item_description, not both.")
+
+        candidates = (
+            match_items(item_description) if item_description is not None else []
+        )
+        if len(candidates) == 1:
+            item_id = candidates[0]["item_id"]
+
         state = initial_case_state(
             item_id=item_id,
             quantity_base=quantity_base,
@@ -664,11 +722,14 @@ def run_agent(
             preparing_officer_id=preparing_officer_id,
             as_of_date=as_of_date,
         )
+        state["item_description"] = item_description
+        state["item_candidates"] = candidates if len(candidates) > 1 else []
     else:
         if any(
             value is not None
             for value in (
-                item_id, quantity_base, unit, preparing_officer_id, as_of_date
+                item_id, item_description, quantity_base, unit,
+                preparing_officer_id, as_of_date,
             )
         ):
             raise ValueError(
@@ -687,6 +748,7 @@ def run_agent(
     )
 
     result["run_id"] = str(uuid.uuid4())
+    result["contract_code"] = contract_code(result.get("reason"))
     _persist_run(
         result,
         tool_events,
@@ -832,6 +894,7 @@ def _persist_run(
         "run_id": result["run_id"],
         "status": result["status"],
         "stop_reason": result.get("reason"),
+        "contract_code": result.get("contract_code"),
         "outstanding": result.get("outstanding"),
         "item_id": item_id,
         "draft_id": state.get("draft_id"),

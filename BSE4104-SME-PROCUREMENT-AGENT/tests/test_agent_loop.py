@@ -433,6 +433,47 @@ class ResumeTests(unittest.TestCase):
         )
 
 
+class ItemDescriptionTests(unittest.TestCase):
+    """US-02 / README finding 8: the loop matches descriptions itself and lists
+    candidates instead of guessing."""
+
+    @patch("src.agent.loop.dispatch_tool")
+    def test_ambiguous_description_lists_candidates_and_selects_none(self, mock_dispatch):
+        result = run_agent(item_description="Portland cement", quantity_base=200)
+
+        self.assertEqual(result["reason"], "AMBIGUOUS_ITEM")
+        self.assertEqual(result["contract_code"], "S5")
+        self.assertIn("INV-001 (Portland cement 32.5N)", result["message"])
+        self.assertIn("INV-002 (Portland cement 42.5N)", result["message"])
+        self.assertIsNone(result["state"]["item"])
+        self.assertEqual(
+            [c["item_id"] for c in result["state"]["item_candidates"]],
+            ["INV-001", "INV-002"],
+        )
+        mock_dispatch.assert_not_called()
+
+    @patch("src.agent.loop.dispatch_tool")
+    def test_unique_description_selects_the_item(self, mock_dispatch):
+        mock_dispatch.side_effect = [REORDER_OK]
+
+        result = run_agent(item_description="cement 32.5N")
+
+        self.assertEqual(result["state"]["item"], {"item_id": "INV-001"})
+        self.assertEqual(mock_dispatch.call_args_list[0].args[1], {"item_id": "INV-001"})
+
+    @patch("src.agent.loop.dispatch_tool")
+    def test_unknown_description_is_item_not_found(self, mock_dispatch):
+        result = run_agent(item_description="solar panel")
+
+        self.assertEqual(result["reason"], "ITEM_NOT_FOUND")
+        self.assertIn("solar panel", result["message"])
+        mock_dispatch.assert_not_called()
+
+    def test_item_id_and_description_together_are_refused(self):
+        with self.assertRaises(ValueError):
+            run_agent(item_id="INV-001", item_description="cement")
+
+
 class AsOfDateTests(unittest.TestCase):
 
     @patch("src.agent.loop.dispatch_tool")
@@ -485,6 +526,8 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(len(trace_lines), 2)  # one tool call + the stop
         self.assertEqual(trace_lines[-1]["event"], "agent_stop")
         self.assertEqual(trace_lines[-1]["stop_reason"], "QUANTITY_CONFIRMATION_REQUIRED")
+        self.assertEqual(trace_lines[-1]["contract_code"], "S5")
+        self.assertEqual(result["contract_code"], "S5")
         self.assertEqual({line["run_id"] for line in trace_lines}, {result["run_id"]})
 
         self.assertEqual(len(audit_lines), 1)

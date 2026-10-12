@@ -52,6 +52,28 @@ class BlockingFlagsUnresolvedError(Exception):
     since 12 Oct 2026: the quotation is already left out of the ranking."""
 
 
+class UnauthorisedActionError(Exception):
+    """Raised when an approval decision is attempted by someone who may not
+    make it (US-09): a non-approver role, or the person who prepared the
+    requisition."""
+
+
+def _check_approver(
+    requisition: "Requisition", approver_id: str, approver_role: str | None
+) -> None:
+    """US-09: only an approver who did not prepare the requisition may decide."""
+    if (approver_role or "").strip().lower() != "approver":
+        raise UnauthorisedActionError(
+            f"{approver_id!r} has role {approver_role!r}; only an approver may "
+            f"approve, reject or query requisition {requisition.requisition_id}."
+        )
+    if requisition.created_by and approver_id == requisition.created_by:
+        raise UnauthorisedActionError(
+            f"{approver_id!r} prepared requisition {requisition.requisition_id} "
+            "and may not also decide it."
+        )
+
+
 @dataclass
 class Requisition:
     """In-memory representation of one requisition's workflow state.
@@ -114,12 +136,16 @@ def submit_for_approval(requisition: Requisition) -> Requisition:
     return requisition
 
 
-def approve(requisition: Requisition, *, approver_id: str) -> Requisition:
+def approve(
+    requisition: Requisition, *, approver_id: str, approver_role: str | None
+) -> Requisition:
     """PENDING_APPROVAL -> APPROVED.
 
     Requires a real approver_id. There is no default, no "system" approver,
     and no way to reach APPROVED from any state other than PENDING_APPROVAL
     (AI Boundary Matrix Principle 2: no automatic approval path at any value).
+    The approver must hold the approver role and must not have prepared the
+    requisition (US-09); callers look the role up in the user registry.
     """
     if requisition.state != "PENDING_APPROVAL":
         raise IllegalStateTransitionError(
@@ -130,6 +156,7 @@ def approve(requisition: Requisition, *, approver_id: str) -> Requisition:
 
     if not approver_id or not str(approver_id).strip():
         raise ValueError("approve() requires a non-empty approver_id.")
+    _check_approver(requisition, approver_id, approver_role)
 
     requisition.state = "APPROVED"
     requisition.decided_by = approver_id
@@ -137,7 +164,13 @@ def approve(requisition: Requisition, *, approver_id: str) -> Requisition:
     return requisition
 
 
-def reject(requisition: Requisition, *, approver_id: str, reason: str) -> Requisition:
+def reject(
+    requisition: Requisition,
+    *,
+    approver_id: str,
+    approver_role: str | None,
+    reason: str,
+) -> Requisition:
     """PENDING_APPROVAL -> REJECTED. Requires an approver and a reason."""
     if requisition.state != "PENDING_APPROVAL":
         raise IllegalStateTransitionError(
@@ -149,6 +182,7 @@ def reject(requisition: Requisition, *, approver_id: str, reason: str) -> Requis
         raise ValueError("reject() requires a non-empty approver_id.")
     if not reason or not str(reason).strip():
         raise ValueError("reject() requires a non-empty reason.")
+    _check_approver(requisition, approver_id, approver_role)
 
     requisition.state = "REJECTED"
     requisition.decided_by = approver_id
@@ -157,7 +191,13 @@ def reject(requisition: Requisition, *, approver_id: str, reason: str) -> Requis
     return requisition
 
 
-def query(requisition: Requisition, *, approver_id: str, reason: str) -> Requisition:
+def query(
+    requisition: Requisition,
+    *,
+    approver_id: str,
+    approver_role: str | None,
+    reason: str,
+) -> Requisition:
     """PENDING_APPROVAL -> QUERIED. Requires an approver and a reason."""
     if requisition.state != "PENDING_APPROVAL":
         raise IllegalStateTransitionError(
@@ -169,6 +209,7 @@ def query(requisition: Requisition, *, approver_id: str, reason: str) -> Requisi
         raise ValueError("query() requires a non-empty approver_id.")
     if not reason or not str(reason).strip():
         raise ValueError("query() requires a non-empty reason.")
+    _check_approver(requisition, approver_id, approver_role)
 
     requisition.state = "QUERIED"
     requisition.decided_by = approver_id
@@ -199,6 +240,7 @@ __all__ = [
     "Requisition",
     "IllegalStateTransitionError",
     "BlockingFlagsUnresolvedError",
+    "UnauthorisedActionError",
     "start_draft",
     "submit_for_approval",
     "approve",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,7 @@ from src.tools.procurement import (
     create_requisition_draft,
 )
 from src.memory import get_supplier_preference_hint
+from src.agent.stop_codes import RETRYABLE_TOOL_ERRORS, contract_code
 
 
 # Every agent tool call is appended here, like Week 3's retrieval.jsonl.
@@ -543,10 +545,49 @@ def extract_function_calls(
 # ---------------------------------------------------------------------------
 # Bounded tool-using agent
 # ---------------------------------------------------------------------------
+def _limit_from_env(name: str, default: int, *, minimum: int) -> int:
+    """Read an agent limit from the environment (contract section 2)."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer.") from exc
+    if value < minimum:
+        raise ValueError(f"{name} must be at least {minimum}.")
+    return value
+
+
+def _stop(
+    stop_reason: str,
+    message: str,
+    outstanding: str,
+    *,
+    trace: list[dict[str, Any]],
+    tool_rounds: int,
+    tool_calls: int,
+) -> dict[str, Any]:
+    """The hand-off package for a model-driven run (contract section 6)."""
+    return {
+        "ok": False,
+        "error": stop_reason,
+        "stop_reason": stop_reason,
+        "contract_code": contract_code(stop_reason),
+        "message": message,
+        "outstanding": outstanding,
+        "trace": trace,
+        "tool_rounds": tool_rounds,
+        "tool_calls": tool_calls,
+    }
+
+
 def _run_tool_loop(
     prompt: str,
     *,
     max_tool_rounds: int = 2,
+    max_tool_calls: int | None = None,
+    max_tool_retries: int | None = None,
     model_name: str | None = None,
     api_key: str | None = None,
 ) -> dict[str, Any]:
@@ -554,17 +595,27 @@ def _run_tool_loop(
     Run a bounded model -> tool -> model workflow.
 
     The model may request approved tools, but:
-    - only allow-listed tools can execute,
-    - every call is traced,
-    - deterministic tools perform calculations,
-    - tool rounds are explicitly bounded,
-    - no autonomous purchasing/payment occurs.
+    - only allow-listed tools can execute, and a blocked request stops the
+      run (S3) instead of letting the model try another route,
+    - tool calls are counted against MAX_AGENT_ITERATIONS (S1), and model
+      rounds are bounded as well,
+    - a failed call goes back to the model for one correction
+      (MAX_TOOL_RETRIES); a second failure of the same tool stops (S2),
+    - any other refusal (policy flags, supplier mismatch, no confirmation)
+      stops the run and hands off,
+    - every call is traced, deterministic tools perform calculations, and
+      no autonomous purchasing/payment occurs.
     """
     if not prompt or not str(prompt).strip():
         raise ValueError("Prompt text is required.")
 
     if max_tool_rounds < 1:
         raise ValueError("max_tool_rounds must be at least 1.")
+
+    if max_tool_calls is None:
+        max_tool_calls = _limit_from_env("MAX_AGENT_ITERATIONS", 6, minimum=1)
+    if max_tool_retries is None:
+        max_tool_retries = _limit_from_env("MAX_TOOL_RETRIES", 1, minimum=0)
 
     from src.model_client import call_model_with_tools
 
@@ -580,25 +631,38 @@ def _run_tool_loop(
     ]
 
     trace: list[dict[str, Any]] = []
+    tool_calls = 0
+    failures: dict[str, int] = {}
 
     for round_number in range(1, max_tool_rounds + 1):
-        response = call_model_with_tools(
-            contents=contents,
-            tools=get_tool_schemas(),
-            model_name=model_name,
-            api_key=api_key,
-        )
+        try:
+            response = call_model_with_tools(
+                contents=contents,
+                tools=get_tool_schemas(),
+                model_name=model_name,
+                api_key=api_key,
+            )
+        except Exception as exc:  # quota, network, 5xx after the client's retry
+            return _stop(
+                "MODEL_UNAVAILABLE",
+                f"The model could not be reached: {exc}",
+                "Retry the request later; no tool was called in this round.",
+                trace=trace,
+                tool_rounds=round_number - 1,
+                tool_calls=tool_calls,
+            )
 
         candidates = response.get("candidates") or []
 
         if not candidates:
-            return {
-                "ok": False,
-                "error": "MODEL_NO_CANDIDATES",
-                "message": "The model returned no candidates.",
-                "trace": trace,
-                "tool_rounds": round_number - 1,
-            }
+            return _stop(
+                "MODEL_NO_CANDIDATES",
+                "The model returned no candidates.",
+                "Retry the request later.",
+                trace=trace,
+                tool_rounds=round_number - 1,
+                tool_calls=tool_calls,
+            )
 
         candidate = candidates[0]
         model_content = candidate.get("content") or {}
@@ -625,6 +689,7 @@ def _run_tool_loop(
                 "answer": answer,
                 "trace": trace,
                 "tool_rounds": round_number - 1,
+                "tool_calls": tool_calls,
             }
 
         # Preserve the exact model content so Gemini's function-calling
@@ -639,10 +704,22 @@ def _run_tool_loop(
             arguments = function_call.get("args") or {}
             function_call_id = function_call.get("id")
 
+            if tool_calls >= max_tool_calls:
+                return _stop(
+                    "ITERATION_LIMIT_REACHED",
+                    f"The agent stopped after {tool_calls} tool calls at the "
+                    f"iteration limit ({max_tool_calls}).",
+                    f"Continue the case; the next requested tool was {function_name}.",
+                    trace=trace,
+                    tool_rounds=round_number,
+                    tool_calls=tool_calls,
+                )
+
             tool_result, trace_event = dispatch_tool(
                 function_name,
                 arguments,
             )
+            tool_calls += 1
 
             trace.append(
                 {
@@ -651,9 +728,35 @@ def _run_tool_loop(
                 }
             )
 
+            if not tool_result.get("ok"):
+                error_code = tool_result.get("error")
+                if error_code not in RETRYABLE_TOOL_ERRORS:
+                    return _stop(
+                        error_code or "TOOL_FAILURE",
+                        tool_result.get("message") or "The tool call was refused.",
+                        f"Human review is required to resolve {error_code}.",
+                        trace=trace,
+                        tool_rounds=round_number,
+                        tool_calls=tool_calls,
+                    )
+                failures[function_name] = failures.get(function_name, 0) + 1
+                if failures[function_name] > max_tool_retries:
+                    return _stop(
+                        "TOOL_FAILED_AFTER_RETRY",
+                        tool_result.get("message") or "The tool failed again.",
+                        f"Retry {function_name} later after the failure has "
+                        "been investigated.",
+                        trace=trace,
+                        tool_rounds=round_number,
+                        tool_calls=tool_calls,
+                    )
+            else:
+                failures[function_name] = 0
+
             # dispatch_tool() returns a router-level wrapper.
             # Gemini receives only the actual deterministic result
-            # or a structured error payload.
+            # or a structured error payload, which is its one chance to
+            # correct the call.
             if tool_result.get("ok"):
                 response_payload = tool_result.get("result")
             else:
@@ -686,16 +789,14 @@ def _run_tool_loop(
     # ------------------------------------------------------------------
     # Explicit bounded-agent stop
     # ------------------------------------------------------------------
-    return {
-        "ok": False,
-        "error": "MAX_TOOL_ROUNDS_EXCEEDED",
-        "message": (
-            f"Agent stopped after reaching the maximum of "
-            f"{max_tool_rounds} tool rounds."
-        ),
-        "trace": trace,
-        "tool_rounds": max_tool_rounds,
-    }
+    return _stop(
+        "MAX_TOOL_ROUNDS_EXCEEDED",
+        f"Agent stopped after reaching the maximum of {max_tool_rounds} tool rounds.",
+        "Continue the case in a new request.",
+        trace=trace,
+        tool_rounds=max_tool_rounds,
+        tool_calls=tool_calls,
+    )
 
 
 def _write_tool_trace(
@@ -722,6 +823,8 @@ def run_bounded_tool_agent(
     prompt: str,
     *,
     max_tool_rounds: int = 2,
+    max_tool_calls: int | None = None,
+    max_tool_retries: int | None = None,
     model_name: str | None = None,
     api_key: str | None = None,
     trace_path: Path | str | None = None,
@@ -730,22 +833,35 @@ def run_bounded_tool_agent(
     Run the bounded tool loop, then persist its trace.
 
     Every tool call is appended to ``trace_path`` (default
-    ``evidence/traces/tool-calls.jsonl``), and every model-vs-computed check
-    the router ran is returned as ``model_checks``.
+    ``evidence/traces/tool-calls.jsonl``), followed by an ``agent_stop`` line
+    when the run stopped, and every model-vs-computed check the router ran is
+    returned as ``model_checks``.
     """
     result = _run_tool_loop(
         prompt,
         max_tool_rounds=max_tool_rounds,
+        max_tool_calls=max_tool_calls,
+        max_tool_retries=max_tool_retries,
         model_name=model_name,
         api_key=api_key,
     )
 
     run_id = str(uuid.uuid4())
     trace = result.get("trace", [])
+    events = list(trace)
+    if result.get("stop_reason"):
+        events.append({
+            "tool_name": None,
+            "event": "agent_stop",
+            "stop_reason": result["stop_reason"],
+            "contract_code": result["contract_code"],
+            "outstanding": result["outstanding"],
+            "tool_calls": result["tool_calls"],
+        })
     _write_tool_trace(
         run_id,
         str(prompt),
-        trace,
+        events,
         Path(trace_path) if trace_path is not None else TOOL_TRACE_PATH,
     )
 

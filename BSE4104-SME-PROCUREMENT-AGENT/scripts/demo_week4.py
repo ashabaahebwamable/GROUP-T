@@ -33,6 +33,10 @@ draft = create_requisition_draft(
     recommended_supplier_id=recommended_supplier,
     comparison_reference=comparison_reference,
     preparing_officer_id="ESAU-JOHN",
-    policy_flags=(),
+    # Pass the comparison's real flags. This used to be () to discard the
+    # excluded-supplier flag; since 12 Oct that flag is informational, so the
+    # list is empty here without discarding anything. For the full bounded
+    # loop (H1, resume, H2) see scripts/demo_week5.py.
+    policy_flags=comparison["blocking_flags"],
 )
 show("Step 3: Draft requisition created", draft)

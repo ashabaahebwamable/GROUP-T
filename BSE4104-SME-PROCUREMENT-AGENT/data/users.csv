@@ -1,0 +1,6 @@
+user_id,display_name,role
+OFFICER-1,Stores officer (synthetic),officer
+ESAU-JOHN,Stores officer (synthetic),officer
+officer-ashley,Stores officer (synthetic),officer
+MANAGER-1,Operations manager (synthetic),approver
+DIRECTOR-1,Director (synthetic),approver
