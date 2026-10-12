@@ -4,7 +4,7 @@ Week 5 deliverable (W5-05): Stop-condition and allow-list tests.
 Owner: Akisa Maria Ashley (Quality/Security Lead).
 
 Tests the bounded loop in src/agent/loop.py against the Week 5 Agent Task Contract
-(docs/architecture/week5-agent-task-contract.md). The three tests the plan requires:
+(docs/architecture/agent-task-contract.md). The three tests the plan requires:
 
   1. Iteration limit reached      -> halt with outstanding items listed   (contract S1)
   2. Tool outside the allow-list  -> blocked before execution and logged  (contract S3)

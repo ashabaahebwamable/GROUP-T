@@ -2,7 +2,7 @@
 
 Owner: Akisa Maria Ashley (Quality/Security Lead). These are recordings of the real bounded
 loop (`src/agent/loop.py`, `run_agent`) run against the Week 5 Agent Task Contract
-(`docs/architecture/week5-agent-task-contract.md`). Stop codes (H2, S4, S5, S2) are the
+(`docs/architecture/agent-task-contract.md`). Stop codes (H2, S4, S5, S2) are the
 contract's.
 
 | File | What it shows | Outcome | Contract |

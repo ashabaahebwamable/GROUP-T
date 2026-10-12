@@ -3,7 +3,7 @@
 **Project:** BSE4104 SME Procurement Preparation Agent (ReqPrep)
 **Week:** 5 — Bounded Agent Loop
 **Owners:** Ashaba Ahebwa Mable (sections 1, 2, 5, 6, 7) · Tendo Caisey (sections 3, 4, 8)
-**Status:** Draft. Mable's sections are written and need Tendo's review. Tendo's sections are still to be written. Items needing agreement from both are listed in section 9.
+**Status:** Draft. Mable's sections are written and were checked against the Week 5 code on 12 Oct 2026; they need Tendo's review. Tendo's sections are still to be written. Items needing agreement from both are listed in section 9.
 
 This contract is what the Week 5 agent loop is built and tested against. "Implement the bounded agent loop" codes it, "Stop-condition and allow-list tests" test it, and the three execution traces demonstrate it. Where this contract and the code disagree, the code is wrong until the contract is changed by agreement.
 
@@ -34,6 +34,8 @@ The agent does not reach that state by itself. Two steps belong to the officer (
 
 **What the agent never does.** It never confirms a supplier, submits, approves, rejects or queries. Approval, rejection and query belong to the approver after the goal is met and are outside the agent loop.
 
+**Built so far (12 Oct).** `run_agent` in `src/agent/loop.py` carries out steps 1, 3 and 5 and stops at H2 (`READY_FOR_HUMAN_APPROVAL`, Trace 1). Step 2 and hand-off H1 are not built: `default_plan` never calls `lookup_policy`, and it creates the draft straight after the comparison without an officer confirming the supplier (section 9, items 3 and 7). Step 6 is available through `submit_for_approval` in the state machine.
+
 ## 2. Maximum iterations (Mable)
 
 **Proposed limit: 6 tool calls per agent run, with at most 1 retry per failed tool call. The retry counts towards the 6.**
@@ -41,13 +43,13 @@ The agent does not reach that state by itself. Two steps belong to the officer (
 | Basis | Detail |
 |---|---|
 | Unit counted | One **tool call** dispatched by the router, allowed or blocked. The charter defines the limit as "tool-call iterations". |
-| Happy path | Steps 1–3 and 5 need 4 to 5 calls: reorder check, 1 or 2 policy lookups (quotation minimum, approval threshold), comparison, draft. |
+| Happy path | Steps 1–3 and 5 need 4 to 5 calls: reorder check, 1 or 2 policy lookups (quotation minimum, approval threshold), comparison, draft. `run_agent` uses 3 today because it skips step 2 (Trace 1). |
 | Headroom | 6 leaves room for one retry (`MAX_TOOL_RETRIES=1`, US-11 criterion 2) without allowing a second loop over the same work. |
-| Resuming after a hand-off | A resumed run starts a new count of 6. The case state carries over; the counter does not. |
-| Model-call budget | Each tool call needs a model turn, so one full case uses about 7–9 Gemini requests. The free tier allows 20 a day, about two full cases. That is enough for the three Week 5 traces only if runs are planned. |
+| Resuming after a hand-off | A resumed run starts a new count of 6. The case state carries over; the counter does not. Not built yet: `run_agent` always starts a new case state (section 9, item 9). |
+| Model-call budget | Each tool call needs a model turn, so one full case uses about 7–9 Gemini requests. The free tier allows 20 a day, about two full cases. `run_agent` currently uses a rule-based planner and makes no model calls, so this budget applies once a model planner is connected. |
 | Configuration | `.env.example` sets `MAX_AGENT_ITERATIONS=6` and `MAX_TOOL_RETRIES=1`; `src.agent.loop.run_agent` reads these values and allows explicit caller overrides. |
 
-`run_agent` counts each router-dispatched call, including blocked calls and retries, in the preserved `iteration_count`. It retries `TOOL_ARGUMENT_ERROR`, `TOOL_EXECUTION_ERROR` and `TOOL_OUTPUT_INVALID` once by default, then hands off with the error and next action outstanding. This enforcement applies to `run_agent`; the earlier model-facing `run_bounded_tool_agent` remains a separate entry point.
+`run_agent` counts each router-dispatched call, including blocked calls and retries, in the preserved `iteration_count`. It retries `TOOL_ARGUMENT_ERROR`, `TOOL_EXECUTION_ERROR` and `TOOL_OUTPUT_INVALID` once by default, then hands off with the error and next action outstanding. The retry counter resets after a successful call, so the limit is one retry per failed call, as specified. This enforcement applies to `run_agent`; the earlier model-facing `run_bounded_tool_agent` remains a separate entry point. Tests: `tests/agent/test_stop_conditions_and_allowlist.py` (iteration limit, never-stopping planner, limit read from the environment).
 
 The charter and project definition still say "[PLACEHOLDER: proposed 6]", and there is no Week 2 sign-off for it in the repository. Once Tendo agrees, this section is the sign-off, and both placeholders are replaced with 6.
 
@@ -87,6 +89,23 @@ The agent halts on any of the following, preserves the case state and hands off 
 
 **Retry rule.** Only S2 and the argument-error case above allow a retry, and only one. S3 to S7 are never retried, because retrying them would mean the agent working around a control.
 
+**Codes in `run_agent` today (12 Oct).** The loop records a descriptive `stop_reason` rather than the contract code. Traces and tests use this mapping until the code emits the contract codes (section 9, item 8).
+
+| Contract code | `stop_reason` in `src/agent/loop.py` | Built? |
+|---|---|---|
+| H1 | none | **No.** The draft is created without a stop (section 9, item 3) |
+| H2 | `READY_FOR_HUMAN_APPROVAL` | Yes (Trace 1) |
+| S1 | `ITERATION_LIMIT_REACHED` | Yes (tests) |
+| S2 | `TOOL_FAILED_AFTER_RETRY` | Yes (Trace 3A) |
+| S3 | `TOOL_NOT_ALLOWED` | Yes; the run stops and is not retried (tests) |
+| S4 | `POLICY_BLOCKING_FLAGS`, `NO_RECOMMENDED_SUPPLIER` | Yes (Traces 1b, 1c) |
+| S5 | `AMBIGUOUS_ITEM`, `ITEM_NOT_FOUND`, `REORDER_STATUS_UNASSESSABLE`, `MISSING_QUANTITY`, `QUANTITY_CONFIRMATION_REQUIRED`, `MISSING_PREPARING_OFFICER`, `NO_REORDER_REQUIRED` | Yes (Trace 2). `NO_REORDER_REQUIRED` ends with status `stopped`, not `handoff`, because there is nothing to hand off |
+| S6 | none | **No.** `lookup_policy` is never called (section 9, item 7) |
+| S7 | `MODEL_VALUE_MISMATCH` | Yes, in the router; the rule-based planner cannot trigger it |
+| S8 | `INVALID_PLAN_ACTION` covers an unusable planner output | Partly. No model is called by `run_agent`, so there is no model-API failure path yet |
+
+One difference from this section: the code retries `TOOL_ARGUMENT_ERROR` by replaying the same arguments, not by letting the model correct them. With the rule-based planner this can only fail again. It should be revisited when a model planner is connected.
+
 ## 6. Hand-off conditions (Mable)
 
 Every stop, planned or failure, ends with the same hand-off package. Its purpose is that the officer can understand what happened and resume or abandon the case without starting again (US-11 criterion 1, US-12).
@@ -106,19 +125,25 @@ Every stop, planned or failure, ends with the same hand-off package. Its purpose
 - The model may write the reason sentence, but the stop code, completed steps and state come from code.
 - After a hand-off the agent does nothing further until a person acts.
 
+**Built so far (12 Oct).** Every `run_agent` stop returns `status`, `reason` (the `stop_reason`), `message`, `outstanding` (the next step, in words), the full case `state`, the in-memory `trace`, and `state_before_last_step`. Tests confirm the state is kept unchanged on an iteration-limit halt, a hand-off, a missing item, a blocked tool and an exhausted retry. Still missing:
+- The stop is not written to `evidence/traces/tool-calls.jsonl` or the audit log; `run_agent` returns the trace but writes no file. This is the test marked `expectedFailure` (section 9, item 10).
+- There is no "what was completed" list as such; it has to be read from `tool_history` and the trace.
+- The officer cannot resume: `run_agent` cannot accept a saved state (section 9, item 9). "Abandon" is available as `halt()` in the state machine, which moves an active case to `HALTED` with a reason.
+- The ambiguity hand-off does not list the candidate items (Trace 2).
+
 ## 7. Prohibited actions (Mable)
 
-Restated from the brief and the AI boundary matrix. "Status" records whether the control exists in code today (7 Oct 2026).
+Restated from the brief and the AI boundary matrix. "Status" records whether the control exists in code (checked 12 Oct 2026, after the Week 5 loop, case store and memory were merged).
 
 | Prohibited action | Matrix row | How it is prevented | Status |
 |---|---|---|---|
 | **Purchase**: issuing a purchase order or committing funds | 11, 12 | No purchasing or payment capability exists anywhere in the system (ABS). | Holds: no such tool or code path |
 | **Supplier contact** through any channel | 10, Principle 3 | No email, messaging or network channel to a supplier exists (ABS). The only outbound connections are to the Gemini API and, on first use, the Hugging Face download of the embedding model. | Holds |
-| **Approval**: approving, rejecting or querying a requisition | 8, 13, 14 | The state machine has no `DRAFT` → `APPROVED` path, approval requires an approver ID, and `requisition_store` is not a model tool (FSM, ALLOW). | Holds. Role check (officer vs approver, US-09) not yet built |
-| **Memory write without confirmation** | 19 | Any durable preference is written only after explicit human confirmation, recorded with the confirming identity and timestamp (CODE, LOG). | Holds by absence: no memory feature exists yet. Must be enforced when US-12 is built in Week 6 |
-| Confirming the supplier or submitting on the officer's behalf | 5, 10 | Hand-offs H1 and H2; the draft tool requires a confirmed supplier. | **Not yet enforced**: the router creates drafts without officer confirmation (section 9) |
+| **Approval**: approving, rejecting or querying a requisition | 8, 13, 14 | The state machine has no `DRAFT` → `APPROVED` path, approval requires an approver ID, and `requisition_store` is not a model tool (FSM, ALLOW). | Holds. The state machine now also has `OPEN` and `HALTED`; still no path into `APPROVED` except `approve()` from `PENDING_APPROVAL`. Role check (officer vs approver, US-09) not yet built |
+| **Memory write without confirmation** | 19 | Any durable preference is written only after explicit human confirmation, recorded with the confirming identity and timestamp (CODE, LOG). | **Holds.** `src/memory/supplier_preferences.py`: `record_supplier_preference` refuses unless `confirmed=True` and a confirmer ID is given, and stores the confirmer and a UTC timestamp. It is not a model tool (`tests/memory/test_supplier_preferences.py`). The router attaches the stored preference to the comparison result as a hint after ranking, and `compare_quotations` does not read memory; no test checks this yet |
+| Confirming the supplier or submitting on the officer's behalf | 5, 10 | Hand-offs H1 and H2; the draft tool requires a confirmed supplier. | **Not yet enforced for the supplier.** `run_agent` creates the draft without officer confirmation (Trace 1; section 9, item 3). Submitting holds: the loop has no submit step and stops at H2 |
 | Using a model-produced figure | 4, Principle 1 | Figures come only from deterministic tools; the router refuses a supplier that differs from the computed one. | Holds for the supplier; full numeral check planned for Week 8 |
-| Calling a tool outside the allow-list | 9 | Router allow-list (ALLOW); the run then stops (S3). | Allow-list holds; stop-on-block to be built |
+| Calling a tool outside the allow-list | 9 | Router allow-list (ALLOW); the run then stops (S3). | **Holds in `run_agent`**: the call is blocked before execution and the run stops without retry (tests). Not yet in `run_bounded_tool_agent`, which returns the error to the model (section 9, item 4) |
 
 ## 8. Enforcement mapping (Tendo)
 
@@ -128,7 +153,16 @@ Restated from the brief and the AI boundary matrix. "Status" records whether the
 
 1. **Iteration limit of 6 tool calls, 1 retry** (section 2). Agree, then remove the placeholders in `project-charter.md` and `project-definition.md`.
 2. **The model-facing loop still counts rounds, not tool calls.** `run_bounded_tool_agent` uses `max_tool_rounds=2`, and one round can contain several tool calls. The deterministic `run_agent` in `src.agent.loop` now enforces the configured tool-call limit and single retry; the model-facing entry point still needs the same controls.
-3. **Hand-off H1 is missing.** The router will create a draft without an officer-confirmed supplier. `create_requisition_draft` should require a confirmed-supplier record from H1.
+3. **Hand-off H1 is missing.** The router will create a draft without an officer-confirmed supplier, and `run_agent` does so in Trace 1. `create_requisition_draft` should require a confirmed-supplier record from H1, and `default_plan` should stop at H1 after the comparison.
 4. **A blocked tool request does not stop the model-facing run** (S3). `run_agent` stops and hands off after its router blocks a call; `run_bounded_tool_agent` still returns the error to the model and continues.
 5. **The model-facing loop has no retry logic or hand-off package.** `run_agent` tracks retry count, preserves its case state and reports the outstanding action; the model-facing entry point still needs this behaviour.
 6. **Role check for approval** (US-09) is not built. This sits with Isaac's state-machine review.
+
+Added on 12 Oct after checking the merged Week 5 code and traces (`evidence/traces/week5/README.md`, findings 1–9):
+
+7. **`lookup_policy` is never called** (step 2, stop S6). `default_plan` goes from the reorder check straight to the comparison, so the case has no policy evidence and S6 cannot occur.
+8. **Stop codes.** The code uses descriptive `stop_reason` strings (section 5 mapping). Decide whether to emit the contract codes as well, or to adopt the strings as the codes.
+9. **`run_agent` cannot resume.** It always builds a new case state, so a preserved state cannot be handed back after the officer acts (sections 2 and 6).
+10. **Stops are not persisted.** `run_agent` writes no trace file or audit entry for a stop (section 6; `expectedFailure` test in `tests/agent/test_stop_conditions_and_allowlist.py`).
+11. **An already-excluded quotation blocks the whole case** (Trace 1b). `compare_quotations` drops QUO-1004 from the ranking but still raises `EXCLUDED_SUPPLIER` as a blocking flag, so the reference case stops at S4. Decide whether this flag should be informational.
+12. **Quotation data is stale** (Trace 1c). No quotation is valid on today's date, so on the real clock every case stops at S4. Refresh the dates before the Week 7 evaluation.
