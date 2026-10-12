@@ -30,7 +30,7 @@ Design note: stock and thresholds are stored in base units while suppliers quote
 
 ## 2. Supplier quotations
 
-`knowledge/records/quotations.csv` — 10 structured records, plus quotation letters in text form under `knowledge/quotations/`.
+`knowledge/records/quotations.csv` — 27 structured records (10 until 12 Oct 2026), plus quotation letters in text form under `knowledge/quotations/`.
 
 | Field                                       | Type                        | Why it exists                                                                       |
 | ------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------- |
@@ -76,6 +76,10 @@ The corpus is seeded with known traps. Each becomes an evaluation scenario in We
 | Lapsed quotation (7-day validity, dated 20 Aug)     | QUO-1005                           | Validity exclusion (US-06 criterion 3, policy 2.3)          |
 | Excluded supplier offering the lowest headline rate | QUO-1004 / SUP-05                  | Supplier status enforcement (US-06 criterion 2, policy 4.1) |
 | Quotation omitting its unit of measure              | Outstanding Week 2 corpus addition | Refusal to default a missing field (US-03 criterion 2)      |
+| Two quotations within 2% on landed cost; the dearer one delivers sooner | INV-010: QUO-1016 / QUO-1017; INV-012: QUO-1019 / QUO-1021 | Lead-time tie-break (policy 3.4): the shorter lead time wins |
+| Too few valid quotations for the case value         | INV-006 (2 valid, 3 required)      | Minimum-quotation rule blocks the case (policy 2.1, S4)     |
+
+Added 12 Oct 2026: QUO-1011 to QUO-1027 give six more below-reorder items (INV-005, 008, 010, 012, 013, 015) enough valid quotations on 2026-09-01 to reach a draft, so Week 7 can run more than the two original cases. The INV-012 tie-break was not planned; it was found when the comparison was run and kept as a second test case. INV-003 (lapsed QUO-1005) and INV-006 still stop at S4 on purpose.
 
 ## 5. The reference mis-ranking case
 
@@ -98,7 +102,7 @@ This single case is worth rehearsing for the final presentation, because it demo
 | ------------------------ | ------ | ------------------------------------------------ |
 | Inventory records        | 15     | ~150                                             |
 | Suppliers                | 6      | 6-10                                             |
-| Structured quotations    | 10     | 30-40                                            |
+| Structured quotations    | 10     | 30-40 (27 on 12 Oct)                             |
 | Quotation letters (text) | 4      | 12-15                                            |
 | Policy documents         | 1      | 2-3 (policy, threshold schedule, supplier terms) |
 | **Total corpus items**   | **21** | **25-40 documents plus records**                 |

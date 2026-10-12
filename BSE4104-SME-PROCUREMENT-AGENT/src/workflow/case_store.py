@@ -281,10 +281,21 @@ class CaseStore:
             if row is None:
                 raise ValueError(f"Unknown case: {case_id}")
 
+            # US-09 separation of duties: whoever submitted the case for
+            # approval prepared it, and may not also decide it.
+            submitter = connection.execute(
+                """
+                SELECT actor_id FROM workflow_case_events
+                WHERE case_id = ? AND state = 'PENDING_APPROVAL'
+                ORDER BY event_id DESC LIMIT 1
+                """,
+                (case_id,),
+            ).fetchone()
             requisition = Requisition(
                 requisition_id=case_id,
                 state=row["state"],
                 policy_flags=json.loads(row["flags_json"]),
+                created_by=submitter["actor_id"] if submitter else None,
                 decided_by=row["decided_by"],
                 decided_at=row["decided_at"],
                 decision_reason=row["decision_reason"],

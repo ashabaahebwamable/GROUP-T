@@ -6,6 +6,7 @@ from src.workflow.case_store import CaseStore
 from src.workflow.state_machine import (
     BlockingFlagsUnresolvedError,
     IllegalStateTransitionError,
+    UnauthorisedActionError,
 )
 
 
@@ -85,6 +86,22 @@ class CaseStoreTests(unittest.TestCase):
         self.assertEqual(approved.decided_by, "MANAGER-1")
         self.assertIsNotNone(approved.decided_at)
         self.assertEqual(events[-1]["actor_id"], "MANAGER-1")
+
+    def test_officer_and_submitter_cannot_approve_a_case(self):
+        """US-09 on the case store: role from the registry, and the person
+        who submitted the case cannot also decide it."""
+        self.store.create_case("CASE-005")
+        self.store.transition_case("CASE-005", "start_draft")
+        self.store.transition_case("CASE-005", "submit", actor_id="DIRECTOR-1")
+
+        with self.assertRaises(UnauthorisedActionError):
+            self.store.transition_case("CASE-005", "approve", actor_id="OFFICER-1")
+        with self.assertRaises(UnauthorisedActionError):
+            self.store.transition_case("CASE-005", "approve", actor_id="DIRECTOR-1")
+
+        self.assertEqual(self.store.get_case("CASE-005").state, "PENDING_APPROVAL")
+        approved = self.store.transition_case("CASE-005", "approve", actor_id="MANAGER-1")
+        self.assertEqual(approved.state, "APPROVED")
 
     def test_halted_case_cannot_be_resumed(self):
         self.store.create_case("CASE-004")

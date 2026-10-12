@@ -10,7 +10,7 @@
 | ---------------------------- | ------------------------- | ------------------------- | ------------------------------------------------ | --------------------- | -------------------------------------------------------------------------------- |
 | `records/inventory.csv`      | 15 of a target ~150 SKUs  | Synthetic, team-authored  | Azibo Isaac Alinda (initial repository author)  | 2026-09-07 baseline  | Ugandan building-materials categories; base and pack units deliberately differ  |
 | `records/suppliers.csv`      | 6 suppliers                | Synthetic, team-authored  | Azibo Isaac Alinda (initial repository author)  | 2026-09-07 baseline  | Includes one excluded supplier (SUP-05) for the policy test                     |
-| `records/quotations.csv`     | 10 quotations               | Synthetic, team-authored  | Azibo Isaac Alinda (initial repository author)  | 2026-09-07 baseline  | Deliberately inconsistent unit, VAT and delivery conventions                     |
+| `records/quotations.csv`     | 27 quotations               | Synthetic, team-authored  | Azibo Isaac Alinda (QUO-1001 to 1010); Ashaba Ahebwa Mable with AI assistance (QUO-1011 to 1027, AI log entry 7) | 2026-09-07 baseline; 2026-10-12 additions | Deliberately inconsistent unit, VAT and delivery conventions. The 12 Oct additions cover the six items below reorder level that had fewer quotations than policy §2 requires (INV-005, 008, 010, 012, 013, 015), all valid on 2026-09-01 |
 | `records/requisitions.csv`   | 1 example row               | Synthetic, team-authored  | Azibo Isaac Alinda (initial repository author)  | 2026-09-07 baseline  | Schema demonstration only                                                         |
 
 ## Documents
@@ -37,7 +37,8 @@ These are referenced for realism only. No text is copied into the corpus and no 
 ## Corpus volume against the Week 3 target (10-50 documents or equivalent records)
 
 - Documents: 1 policy + 6 quotation letters = **7 documents**
-- Records: 15 inventory rows + 6 supplier rows + 10 quotation rows + 1 requisition row = **32 structured records**
+- Records: 15 inventory rows + 6 supplier rows + 27 quotation rows + 1 requisition row = **49 structured records** (32 until the 12 Oct quotation additions)
+- Effect of the 12 Oct additions on the Week 3 evaluation, checked with retrieval only (no model call): 11 of 15 questions retrieve exactly the same chunks and scores. In B1, B4, C1 and C3 the policy chunks are unchanged and only the lower-ranked `quotations.csv` rows differ. Those four answers need a Gemini rerun to confirm the Week 3 results still hold, C3 (a required refusal) in particular.
 - Combined, the corpus is within the required range once records are counted as equivalent items, as the brief allows. Structured records (CSV) carry most of the volume; free-text documents (policy + letters) carry most of the retrieval/grounding complexity, which is what Week 3's RAG evaluation actually exercises.
 
 ## Outstanding

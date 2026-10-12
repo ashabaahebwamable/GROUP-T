@@ -37,7 +37,7 @@ The model-driven entry point, `run_bounded_tool_agent`, has the same controls: t
 
 ## Testing (W5-05)
 
-The test suite (`python -m pytest`) runs **143 tests and 17 subtests, and all pass** (12 Oct 2026). There are no expected failures left: the one that documented unsaved stops was removed once stops were persisted.
+The test suite (`python -m pytest`) runs **144 tests and 17 subtests, and all pass** (12 Oct 2026). There are no expected failures left: the one that documented unsaved stops was removed once stops were persisted.
 
 | Requirement | Tests |
 |---|---|
@@ -81,9 +81,10 @@ Checking the merged code against the contract on 12 Oct found these gaps; all we
 ## Still open
 
 - **Tendo's review of contract sections 3, 4 and 8.** They were drafted from the code on 12 Oct because his text was not in the repository. He needs to accept or replace them, and to agree the iteration limit of 6, after which the placeholders in `project-charter.md` and `project-definition.md` are replaced.
-- **Owner review of the 12 Oct changes.** Isaac (loop and state machine, including the role check) and Ashley (her tests, trace generator and traces) should review the changes made to their files (AI Engineering Log, entry 6). No record of Isaac's review of the Week 4 state machine (planned for Week 5) is in the repository yet.
-- **Quotation coverage.** Only 4 of the 15 inventory items have quotations, which limits the Week 7 evaluation set. Adding quotations changes the shared data used by the Week 3 evaluation, so it is planned with Week 7.
-- **Live Gemini run.** `scripts/run_week4_agent.py` has not yet been rerun since the quota errors on 7 Oct; `run_agent` itself calls no model.
+- **Owner confirmation of the 12 Oct changes.** Because the owners could not be reached, an independent review was done and recorded in `docs/reviews/week5-change-review.md`. It found one defect, now fixed (the case store skipped the self-approval check), and four minor points. The owners (Isaac, Tendo, Ashley) still need to confirm in that note's last table. No record of Isaac's review of the Week 4 state machine is in the repository yet.
+- **Week 3 evaluation after the quotation additions.** Seventeen synthetic quotations (QUO-1011 to QUO-1027) were added so that seven of the nine below-reorder items can reach a draft. Retrieval for the 15 Week 3 questions was compared before and after without the model: 11 are identical, and B1, B4, C1 and C3 differ only in lower-ranked quotation rows. Those four need a Gemini rerun, C3 (a required refusal) in particular.
+- **Live Gemini run.** Not run: no Gemini API key is configured on the machine used on 12 Oct. `scripts/run_week4_agent.py` (4 scenarios) and the four Week 3 questions above need about 15 requests, within the free tier's 20 a day. `run_agent` itself calls no model.
+- **Demo video.** `scripts/demo_week5.py` was run and its output saved as `evidence/demo/week5/w5-demo-transcript.txt`; a screen recording, like Week 4's, still needs a person.
 
 ## Individual contributions (from repository history)
 
@@ -105,4 +106,4 @@ Checking the merged code against the contract on 12 Oct found these gaps; all we
 
 ## Conclusion
 
-Week 5 delivered a bounded agent that follows a written contract: six tool calls at most, one retry, ten coded stop conditions, a hand-off package on every stop, and two points where it waits for the officer. Both loops stop on a blocked tool instead of trying another route, every stop is saved to the trace and audit log, and a stopped case resumes without repeating work. Approval is now restricted to approver accounts and cannot be made by the person who prepared the requisition. All 143 tests pass and five traces show the behaviour on real tools, including the project's reference case reaching a draft. What remains is review by the owners of the code and contract sections changed this week, and wider quotation coverage for Week 7.
+Week 5 delivered a bounded agent that follows a written contract: six tool calls at most, one retry, ten coded stop conditions, a hand-off package on every stop, and two points where it waits for the officer. Both loops stop on a blocked tool instead of trying another route, every stop is saved to the trace and audit log, and a stopped case resumes without repeating work. Approval is now restricted to approver accounts and cannot be made by the person who prepared the requisition. All 144 tests pass and five traces show the behaviour on real tools, including the project's reference case reaching a draft, and seven of the nine items below reorder level can now reach a draft. What remains is the owners' confirmation of this week's changes, Tendo's review of his contract sections, and a Gemini rerun once an API key is available.

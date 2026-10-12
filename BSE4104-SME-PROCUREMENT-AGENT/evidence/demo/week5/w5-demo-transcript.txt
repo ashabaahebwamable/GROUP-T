@@ -1,0 +1,47 @@
+﻿Week 5 demo transcript: python -m scripts.demo_week5
+Recorded 2026-10-12 21:23 from the terminal (no screen recording; Hugging Face cache warnings removed).
+
+Writes go to a temporary folder (pass --persist to keep them).
+=== Run 1: reorder check, policy lookups, comparison ===
+{
+  "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED",
+  "message": "The deterministic comparison recommends SUP-01. An officer must confirm this supplier before the requisition draft is created.",
+  "tools_called_this_run": [
+    "check_reorder_levels",
+    "lookup_policy",
+    "lookup_policy",
+    "compare_quotations"
+  ],
+  "recommended_supplier": "SUP-01",
+  "ranked_quotations": [
+    "QUO-1001",
+    "QUO-1003",
+    "QUO-1002"
+  ],
+  "informational_flags": [
+    "EXCLUDED_SUPPLIER:SUP-05:QUO-1004"
+  ],
+  "blocking_flags": [],
+  "draft_id": null
+}
+=== Officer ESAU-JOHN confirms SUP-01 (hand-off H1) ===
+=== Run 2: resume from the saved state, create the draft ===
+{
+  "stop": "H2 READY_FOR_HUMAN_APPROVAL",
+  "message": "The requisition draft is ready for human review and approval. The agent will not approve or purchase automatically.",
+  "tools_called_this_run": [
+    "create_requisition_draft"
+  ],
+  "recommended_supplier": "SUP-01",
+  "ranked_quotations": [
+    "QUO-1001",
+    "QUO-1003",
+    "QUO-1002"
+  ],
+  "informational_flags": [
+    "EXCLUDED_SUPPLIER:SUP-05:QUO-1004"
+  ],
+  "blocking_flags": [],
+  "draft_id": "REQ-2026-0003"
+}
+The agent stops at H2. Submitting is the officer's action and approval is an approver's (state machine, US-09); neither is a tool.
