@@ -333,6 +333,8 @@ def create_requisition_draft(
     preparing_officer_id: str,
     *,
     policy_flags: Iterable[str] = (),
+    confirmed_supplier_id: str = "",
+    confirmed_by: str = "",
     requisitions_path: Path | str = REQUISITIONS_PATH,
     audit_log_path: Path | str = AUDIT_LOG_PATH,
     inventory: Iterable[dict[str, Any]] | None = None,
@@ -396,7 +398,7 @@ def create_requisition_draft(
         "quantity_base": str(_number(quantity)),
         "quantity_unit": next(row.get("base_unit", "") for row in inventory_rows if row.get("item_id") == item_id),
         "recommended_supplier_id": recommended_supplier_id,
-        "confirmed_supplier_id": "",
+        "confirmed_supplier_id": confirmed_supplier_id,
         "justification_ref": comparison_reference,
         "policy_flags": json.dumps(flags),
         "state": "DRAFT",
@@ -415,6 +417,8 @@ def create_requisition_draft(
         "actor_id": preparing_officer_id,
         "timestamp": created_at,
         "comparison_reference": comparison_reference,
+        "confirmed_supplier_id": confirmed_supplier_id,
+        "supplier_confirmed_by": confirmed_by,
     }
     with audit_path.open("a", encoding="utf-8") as audit_file:
         audit_file.write(json.dumps(audit_event, sort_keys=True) + "\n")

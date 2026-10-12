@@ -87,12 +87,33 @@ VALID_DRAFT = {
 
 class DraftPreCheckTests(unittest.TestCase):
 
-    def _dispatch(self, comparison):
+    CONFIRMED = {"supplier_id": "SUP-01", "confirmed_by": "OFFICER-1"}
+
+    def _dispatch(self, comparison, confirmation=CONFIRMED):
         draft_tool = MagicMock(return_value=VALID_DRAFT)
         with patch.dict(TOOL_REGISTRY, {"create_requisition_draft": draft_tool}), \
                 patch("src.agent.tools_router.compare_quotations", return_value=comparison):
-            result, trace = dispatch_tool("create_requisition_draft", dict(DRAFT_ARGS))
+            result, trace = dispatch_tool(
+                "create_requisition_draft",
+                dict(DRAFT_ARGS),
+                supplier_confirmation=confirmation,
+            )
         return result, trace, draft_tool
+
+    def test_draft_without_officer_confirmation_is_refused(self):
+        """Hand-off H1 (contract section 1): no draft until an officer confirms."""
+        clean = {"recommended_supplier_id": "SUP-01", "blocking_flags": []}
+        for confirmation in (
+            None,
+            {"supplier_id": "SUP-01", "confirmed_by": ""},
+            {"supplier_id": "SUP-02", "confirmed_by": "OFFICER-1"},
+        ):
+            with self.subTest(confirmation=confirmation):
+                result, _, draft_tool = self._dispatch(clean, confirmation)
+
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["error"], "SUPPLIER_NOT_CONFIRMED")
+                draft_tool.assert_not_called()
 
     def test_supplier_different_from_computed_is_refused(self):
         result, trace, draft_tool = self._dispatch({"recommended_supplier_id": "SUP-03", "blocking_flags": []})
@@ -118,6 +139,8 @@ class DraftPreCheckTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertFalse(trace["checks"][0]["mismatch"])
         self.assertEqual(draft_tool.call_args.kwargs["policy_flags"], [])
+        self.assertEqual(draft_tool.call_args.kwargs["confirmed_supplier_id"], "SUP-01")
+        self.assertEqual(draft_tool.call_args.kwargs["confirmed_by"], "OFFICER-1")
 
 
 class ToolTraceFileTests(unittest.TestCase):

@@ -8,19 +8,27 @@ Design principles:
 - Deterministic procurement tools remain authoritative for calculations,
   policy checks, and state-changing operations.
 - Ambiguity is handed back to the human rather than guessed.
-- The loop returns explicit case state so a future iteration-limit/retry
-  controller can halt safely without losing progress.
+- The loop returns explicit case state so it can halt safely without losing
+  progress, and a saved state can be passed back to resume the case.
+- Every run is persisted: tool calls and the stop go to the tool trace, and
+  the stop goes to the audit log (contract section 6).
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
+import json
 import os
+from pathlib import Path
 from typing import Any, Callable
+import uuid
 
 from dotenv import load_dotenv
 
+from src.agent import tools_router
 from src.agent.tools_router import dispatch_tool
+from src.tools import procurement
 
 
 load_dotenv()
@@ -32,6 +40,13 @@ RETRYABLE_TOOL_ERRORS = {
     "TOOL_EXECUTION_ERROR",
     "TOOL_OUTPUT_INVALID",
 }
+
+# Contract section 1, step 2: the rules every case needs before quotations
+# are compared. Each is one lookup_policy call.
+POLICY_TOPICS = (
+    "minimum number of quotations required",
+    "approval threshold for requisitions",
+)
 
 
 Planner = Callable[[dict[str, Any]], dict[str, Any]]
@@ -50,15 +65,17 @@ def initial_case_state(
 ) -> dict[str, Any]:
     """Create the bounded agent's initial case state.
 
-    The state is deliberately explicit so that a future iteration/retry
-    controller can preserve it when the loop halts.
+    The state is deliberately explicit so that the loop can preserve it when
+    it halts and accept it back to resume.
     """
     return {
         "item": {"item_id": item_id} if item_id else None,
         "quantity": quantity_base,
         "unit": unit,
+        "policy_evidence": {},
         "comparison_result": None,
         "blocking_flags": [],
+        "confirmed_supplier": None,
         "draft_id": None,
         "iteration_count": 0,
         "last_error": None,
@@ -191,6 +208,32 @@ def default_plan(state: dict[str, Any]) -> dict[str, Any]:
         }
 
     # ---------------------------------------------------------------
+    # Retrieve the policy rules the case needs (contract step 2)
+    # ---------------------------------------------------------------
+    policy_evidence = state.get("policy_evidence") or {}
+
+    for topic in POLICY_TOPICS:
+        evidence = policy_evidence.get(topic)
+
+        if evidence is None:
+            return {
+                "action": "tool",
+                "tool_name": "lookup_policy",
+                "arguments": {"topic": topic},
+            }
+
+        if evidence.get("status") != "found":
+            return {
+                "action": "handoff",
+                "reason": "POLICY_NOT_FOUND",
+                "message": (
+                    f"The procurement policy gave no evidence for "
+                    f"'{topic}'. The rule must be confirmed by a person "
+                    f"before quotations are compared."
+                ),
+            }
+
+    # ---------------------------------------------------------------
     # Compare quotations
     # ---------------------------------------------------------------
     if state.get("comparison_result") is None:
@@ -237,6 +280,26 @@ def default_plan(state: dict[str, Any]) -> dict[str, Any]:
             "message": (
                 "No eligible supplier recommendation was produced by "
                 "the deterministic quotation comparison."
+                f"{preference_note}"
+            ),
+        }
+
+    # ---------------------------------------------------------------
+    # Hand-off H1: the officer confirms the supplier before any draft
+    # ---------------------------------------------------------------
+    confirmed = state.get("confirmed_supplier") or {}
+
+    if (
+        not state.get("draft_id")
+        and confirmed.get("supplier_id") != recommended_supplier_id
+    ):
+        return {
+            "action": "handoff",
+            "reason": "SUPPLIER_CONFIRMATION_REQUIRED",
+            "message": (
+                f"The deterministic comparison recommends "
+                f"{recommended_supplier_id}. An officer must confirm this "
+                f"supplier before the requisition draft is created."
                 f"{preference_note}"
             ),
         }
@@ -327,6 +390,10 @@ def observe_tool_result(
     if tool_name == "check_reorder_levels":
         next_state["reorder_result"] = deepcopy(result)
 
+    elif tool_name == "lookup_policy":
+        topic = arguments.get("topic") or result.get("topic")
+        next_state.setdefault("policy_evidence", {})[topic] = deepcopy(result)
+
     elif tool_name == "compare_quotations":
         next_state["comparison_result"] = deepcopy(result)
 
@@ -344,6 +411,54 @@ def observe_tool_result(
         if draft_id:
             next_state["draft_id"] = draft_id
 
+    return next_state
+
+
+# ---------------------------------------------------------------------------
+# Officer action at hand-off H1
+# ---------------------------------------------------------------------------
+
+def confirm_supplier(
+    state: dict[str, Any],
+    *,
+    supplier_id: str,
+    officer_id: str,
+) -> dict[str, Any]:
+    """Record the officer's confirmation of the recommended supplier.
+
+    This is a human action, called by the application on the officer's
+    behalf; it is not a tool and the planner cannot call it. Only the
+    computed recommendation can be confirmed: choosing another supplier is a
+    policy override and stays outside the agent. Returns a new state that can
+    be passed back to :func:`run_agent` to resume the case.
+    """
+    if not isinstance(officer_id, str) or not officer_id.strip():
+        raise ValueError("officer_id is required to confirm a supplier.")
+
+    comparison = state.get("comparison_result") or {}
+    recommended = comparison.get("recommended_supplier_id")
+
+    if not recommended:
+        raise ValueError("There is no computed supplier recommendation to confirm.")
+
+    if state.get("blocking_flags"):
+        raise ValueError(
+            "The comparison has blocking flags; they must be resolved before "
+            "a supplier can be confirmed."
+        )
+
+    if supplier_id != recommended:
+        raise ValueError(
+            f"Only the computed recommendation ({recommended}) can be "
+            f"confirmed; choosing {supplier_id} is a policy override."
+        )
+
+    next_state = deepcopy(state)
+    next_state["confirmed_supplier"] = {
+        "supplier_id": supplier_id,
+        "confirmed_by": officer_id.strip(),
+        "confirmed_at": datetime.now(timezone.utc).isoformat(),
+    }
     return next_state
 
 
@@ -434,10 +549,20 @@ def run_agent_step(
     tool_name = plan.get("tool_name")
     arguments = plan.get("arguments") or {}
 
-    tool_result, trace_event = dispatch_tool(
-        tool_name,
-        arguments,
-    )
+    if tool_name == "create_requisition_draft":
+        # The H1 confirmation comes from case state, never from the plan.
+        tool_result, trace_event = dispatch_tool(
+            tool_name,
+            arguments,
+            supplier_confirmation=deepcopy(
+                current_state.get("confirmed_supplier")
+            ),
+        )
+    else:
+        tool_result, trace_event = dispatch_tool(
+            tool_name,
+            arguments,
+        )
 
     current_state["iteration_count"] = (
         current_state.get("iteration_count", 0) + 1
@@ -472,15 +597,27 @@ def run_agent(
     quantity_base: float | int | None = None,
     unit: str | None = None,
     preparing_officer_id: str | None = None,
+    state: dict[str, Any] | None = None,
     planner: Planner = default_plan,
     max_steps: int | None = None,
     max_tool_retries: int | None = None,
+    trace_path: Path | str | None = None,
+    audit_log_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """Run the bounded procurement-preparation workflow.
 
     The iteration limit counts tool calls, including retries and blocked
     calls. Environment defaults follow the Week 5 contract; explicit
     arguments can override them for callers and tests.
+
+    Pass ``state`` (the ``state`` of an earlier result, for example after
+    :func:`confirm_supplier`) to resume a case instead of starting one. The
+    case data carries over unchanged; the iteration count starts again
+    (contract section 2).
+
+    Every run appends its tool calls and its stop to ``trace_path`` (default
+    ``evidence/traces/tool-calls.jsonl``) and its stop to ``audit_log_path``
+    (default ``evidence/traces/audit-log.jsonl``).
 
     No purchase, supplier contact, payment, or approval is performed.
     """
@@ -502,13 +639,64 @@ def run_agent(
     elif max_tool_retries < 0:
         raise ValueError("max_tool_retries must be zero or greater.")
 
-    state = initial_case_state(
-        item_id=item_id,
-        quantity_base=quantity_base,
-        unit=unit,
-        preparing_officer_id=preparing_officer_id,
+    if state is None:
+        state = initial_case_state(
+            item_id=item_id,
+            quantity_base=quantity_base,
+            unit=unit,
+            preparing_officer_id=preparing_officer_id,
+        )
+    else:
+        if any(
+            value is not None
+            for value in (item_id, quantity_base, unit, preparing_officer_id)
+        ):
+            raise ValueError(
+                "Pass either a saved state to resume or new case inputs, "
+                "not both."
+            )
+        state = _resumable_state(state)
+
+    tool_events: list[dict[str, Any]] = []
+    result = _run_loop(
+        state,
+        planner=planner,
+        max_steps=max_steps,
+        max_tool_retries=max_tool_retries,
+        tool_events=tool_events,
     )
 
+    result["run_id"] = str(uuid.uuid4())
+    _persist_run(
+        result,
+        tool_events,
+        trace_path=Path(trace_path) if trace_path is not None
+        else tools_router.TOOL_TRACE_PATH,
+        audit_log_path=Path(audit_log_path) if audit_log_path is not None
+        else procurement.AUDIT_LOG_PATH,
+    )
+    return result
+
+
+def _resumable_state(saved: dict[str, Any]) -> dict[str, Any]:
+    """Prepare a saved state for a new run without changing its case data."""
+    state = initial_case_state()
+    state.update(deepcopy(saved))
+    state["iteration_count"] = 0
+    state["stop_reason"] = None
+    state["outstanding"] = None
+    return state
+
+
+def _run_loop(
+    state: dict[str, Any],
+    *,
+    planner: Planner,
+    max_steps: int,
+    max_tool_retries: int,
+    tool_events: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """The bounded Plan -> Act -> Observe loop behind :func:`run_agent`."""
     trace: list[dict[str, Any]] = []
 
     while True:
@@ -551,6 +739,9 @@ def run_agent(
                 "state_after": deepcopy(state),
             }
         )
+
+        if result.get("trace_event"):
+            tool_events.append(deepcopy(result["trace_event"]))
 
         if result["status"] == "tool_error":
             tool_result = result.get("tool_result") or {}
@@ -603,6 +794,44 @@ def run_agent(
             }
 
 
+def _persist_run(
+    result: dict[str, Any],
+    tool_events: list[dict[str, Any]],
+    *,
+    trace_path: Path,
+    audit_log_path: Path,
+) -> None:
+    """Write the run's tool calls and stop to the trace, and the stop to the audit log."""
+    state = result["state"]
+    item_id = (state.get("item") or {}).get("item_id")
+    stop = {
+        "run_id": result["run_id"],
+        "status": result["status"],
+        "stop_reason": result.get("reason"),
+        "outstanding": result.get("outstanding"),
+        "item_id": item_id,
+        "draft_id": state.get("draft_id"),
+        "iteration_count": state.get("iteration_count"),
+    }
+
+    tools_router._write_tool_trace(
+        result["run_id"],
+        f"run_agent item_id={item_id}",
+        [*tool_events, {"tool_name": None, "event": "agent_stop", **stop}],
+        trace_path,
+    )
+
+    audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+    audit_event = {
+        "event_id": str(uuid.uuid4()),
+        "event_type": "AGENT_RUN_STOPPED",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        **stop,
+    }
+    with audit_log_path.open("a", encoding="utf-8") as audit_file:
+        audit_file.write(json.dumps(audit_event, sort_keys=True) + "\n")
+
+
 def _read_positive_int(
     name: str,
     default: int,
@@ -645,11 +874,28 @@ def _outstanding_action(state: dict[str, Any]) -> str:
     if state.get("quantity") is None:
         return "Confirm the requested reorder quantity and unit."
 
+    policy_evidence = state.get("policy_evidence") or {}
+    if any(topic not in policy_evidence for topic in POLICY_TOPICS):
+        return (
+            f"Look up the procurement-policy rules for inventory item {item_id}."
+        )
+
     if state.get("comparison_result") is None:
         return f"Compare quotations for inventory item {item_id}."
 
     if state.get("blocking_flags"):
         return "Resolve the blocking procurement-policy flags."
+
+    recommended = (state.get("comparison_result") or {}).get(
+        "recommended_supplier_id"
+    )
+    confirmed = state.get("confirmed_supplier") or {}
+    if (
+        not state.get("draft_id")
+        and recommended
+        and confirmed.get("supplier_id") != recommended
+    ):
+        return f"An officer must confirm supplier {recommended}."
 
     if not state.get("draft_id"):
         return f"Continue requisition preparation for inventory item {item_id}."

@@ -133,7 +133,7 @@ class MalformedToolResponseTests(unittest.TestCase):
                 "recommended_supplier_id": "SUP-01",
                 "comparison_reference": "ref",
                 "preparing_officer_id": "OFFICER-1",
-            })
+            }, supplier_confirmation={"supplier_id": "SUP-01", "confirmed_by": "OFFICER-1"})
 
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "TOOL_OUTPUT_INVALID")

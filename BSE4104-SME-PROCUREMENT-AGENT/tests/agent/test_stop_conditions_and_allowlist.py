@@ -14,10 +14,9 @@ Isolation: nothing here calls the model, the network, or writes to the repositor
 Tool results are scripted (ScriptedDispatcher) or the real tools are replaced with
 mocks, so a run costs no Gemini quota and leaves no files behind.
 
-One test is marked expectedFailure on purpose: it documents a gap between the contract
-and the code (blocked calls are returned in the run trace but never persisted). If
-that gap is fixed the test will report an unexpected success, which is the cue to
-remove the marker.
+One test was marked expectedFailure while blocked calls were not persisted. run_agent
+now writes every run to the tool trace and the audit log (12 Oct 2026), so the marker
+was removed as this docstring instructed.
 """
 
 import copy
@@ -37,8 +36,10 @@ CASE_DATA_KEYS = (
     "quantity",
     "unit",
     "reorder_result",
+    "policy_evidence",
     "comparison_result",
     "blocking_flags",
+    "confirmed_supplier",
     "draft_id",
     "preparing_officer_id",
 )
@@ -93,7 +94,7 @@ class ScriptedDispatcher:
         self.failing_tool = failing_tool
         self.calls = []
 
-    def __call__(self, tool_name, arguments=None):
+    def __call__(self, tool_name, arguments=None, **_router_kwargs):
         self.calls.append(tool_name)
         if tool_name == self.failing_tool:
             return _failed(
@@ -101,6 +102,8 @@ class ScriptedDispatcher:
             )
         if tool_name == "check_reorder_levels":
             return _ok(tool_name, copy.deepcopy(REORDER_OK))
+        if tool_name == "lookup_policy":
+            return _ok(tool_name, {"topic": (arguments or {}).get("topic"), "status": "found"})
         if tool_name == "compare_quotations":
             return _ok(tool_name, copy.deepcopy(self.comparison))
         if tool_name == "create_requisition_draft":
@@ -145,15 +148,18 @@ class IterationLimitTests(unittest.TestCase):
         self.assertIn("(2)", result["message"])
         self.assertIn("Case state is preserved", result["message"])
 
-        # It really stopped: the third tool (the draft) was never dispatched.
-        self.assertEqual(dispatcher.calls, ["check_reorder_levels", "compare_quotations"])
+        # It really stopped: the second policy lookup was never dispatched.
+        self.assertEqual(dispatcher.calls, ["check_reorder_levels", "lookup_policy"])
 
     def test_outstanding_reflects_how_far_the_case_got(self):
         one_call = _run(ScriptedDispatcher(), max_steps=1)
-        self.assertIn("Compare quotations", one_call["outstanding"])
+        self.assertIn("procurement-policy rules", one_call["outstanding"])
 
-        two_calls = _run(ScriptedDispatcher(), max_steps=2)
-        self.assertIn("Continue requisition preparation", two_calls["outstanding"])
+        three_calls = _run(ScriptedDispatcher(), max_steps=3)
+        self.assertIn("Compare quotations", three_calls["outstanding"])
+
+        four_calls = _run(ScriptedDispatcher(), max_steps=4)
+        self.assertIn("confirm supplier SUP-01", four_calls["outstanding"])
 
     def test_zero_limit_halts_before_any_tool_call(self):
         dispatcher = ScriptedDispatcher()
@@ -277,17 +283,10 @@ class AllowListTests(unittest.TestCase):
         self.assertEqual(len(result["state"]["tool_history"]), 1)
         mocks["check_reorder_levels"].assert_not_called()
 
-    @unittest.expectedFailure
     def test_blocked_call_is_written_to_the_persistent_tool_trace(self):
-        """KNOWN GAP (contract section 6): "The stop and its reason are written to the
-        trace and the audit log." run_agent returns the trace to its caller but never
-        writes it to evidence/traces/tool-calls.jsonl (only the older model-facing
-        run_bounded_tool_agent does). So a blocked call is logged in memory only and
-        is lost when the run object is discarded.
-
-        Marked expectedFailure so CI stays green while the gap is open. When it is
-        fixed this test passes, pytest reports it as an unexpected success, and the
-        marker should be removed.
+        """Contract section 6: "The stop and its reason are written to the trace and
+        the audit log." Previously a known gap (marked expectedFailure); run_agent now
+        appends every tool call and the stop to evidence/traces/tool-calls.jsonl.
         """
         with tempfile.TemporaryDirectory() as tmp:
             trace_file = Path(tmp) / "tool-calls.jsonl"
@@ -315,7 +314,7 @@ class StatePreservedAfterHaltTests(unittest.TestCase):
     """
 
     def test_iteration_limit_halt_leaves_the_state_exactly_as_it_was(self):
-        result = _run(ScriptedDispatcher(), max_steps=2)
+        result = _run(ScriptedDispatcher(), max_steps=4)
 
         state_before_halt = result["trace"][-1]["state_after"]  # after the last real step
         state_after_halt = result["state"]
@@ -339,7 +338,10 @@ class StatePreservedAfterHaltTests(unittest.TestCase):
             _without(result["state_before_last_step"], HALT_ANNOTATIONS),
         )
         # Nothing was recomputed on the way out.
-        self.assertEqual(dispatcher.calls, ["check_reorder_levels", "compare_quotations"])
+        self.assertEqual(
+            dispatcher.calls,
+            ["check_reorder_levels", "lookup_policy", "lookup_policy", "compare_quotations"],
+        )
 
     def test_missing_item_halt_leaves_the_state_exactly_as_it_was(self):
         dispatcher = ScriptedDispatcher()
@@ -393,7 +395,8 @@ class StatePreservedAfterHaltTests(unittest.TestCase):
         self.assertEqual(result["reason"], "TOOL_FAILED_AFTER_RETRY")
         self.assertEqual(
             dispatcher.calls,
-            ["check_reorder_levels", "compare_quotations", "compare_quotations"],
+            ["check_reorder_levels", "lookup_policy", "lookup_policy",
+             "compare_quotations", "compare_quotations"],
         )  # one attempt + exactly one retry
         self.assertIn("compare_quotations", result["outstanding"])
 

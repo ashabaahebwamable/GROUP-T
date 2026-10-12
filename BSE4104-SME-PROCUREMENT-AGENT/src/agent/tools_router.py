@@ -304,6 +304,8 @@ def _check_draft_against_comparison(
 def dispatch_tool(
     tool_name: str,
     arguments: dict[str, Any] | None = None,
+    *,
+    supplier_confirmation: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Dispatch one model-requested tool call.
@@ -321,6 +323,11 @@ def dispatch_tool(
         }
 
     Only allow-listed tools can execute.
+
+    ``supplier_confirmation`` is the officer's hand-off H1 record
+    (``supplier_id``, ``confirmed_by``, ``confirmed_at``). It is passed by
+    code, never by the model: it is not in any tool schema, so the model
+    cannot supply it. A draft is refused without it.
     """
     arguments = arguments or {}
 
@@ -380,7 +387,28 @@ def dispatch_tool(
                     details={"checks": checks},
                 )
 
+            # Hand-off H1: an identified officer must have confirmed this
+            # exact supplier before any draft exists (contract section 1).
+            confirmation = supplier_confirmation or {}
+            if (
+                not str(confirmation.get("confirmed_by") or "").strip()
+                or confirmation.get("supplier_id")
+                != comparison.get("recommended_supplier_id")
+            ):
+                return _failure(
+                    tool_name,
+                    arguments,
+                    "SUPPLIER_NOT_CONFIRMED",
+                    (
+                        "Draft refused: an officer must confirm the recommended "
+                        "supplier before a draft is created."
+                    ),
+                    checks=checks,
+                )
+
             call_arguments["policy_flags"] = blocking_flags
+            call_arguments["confirmed_supplier_id"] = confirmation["supplier_id"]
+            call_arguments["confirmed_by"] = str(confirmation["confirmed_by"]).strip()
 
         # --------------------------------------------------------------
         # Deterministic tool execution

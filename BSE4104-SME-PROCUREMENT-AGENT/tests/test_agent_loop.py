@@ -1,7 +1,19 @@
 import unittest
 from unittest.mock import call, patch
 
-from src.agent.loop import default_plan, run_agent
+from src.agent.loop import POLICY_TOPICS, confirm_supplier, default_plan, run_agent
+
+
+POLICY_FOUND = {
+    topic: {"topic": topic, "status": "found"} for topic in POLICY_TOPICS
+}
+
+
+def _policy_ok(topic):
+    return (
+        {"ok": True, "result": {"topic": topic, "status": "found"}},
+        {"status": "success"},
+    )
 
 
 class BoundedAgentLoopTests(unittest.TestCase):
@@ -12,6 +24,7 @@ class BoundedAgentLoopTests(unittest.TestCase):
                 "item": {"item_id": "INV-001"},
                 "quantity": 200,
                 "reorder_result": {"items_to_reorder": [{"item_id": "INV-001"}]},
+                "policy_evidence": POLICY_FOUND,
                 "comparison_result": {
                     "recommended_supplier_id": "SUP-02",
                     "supplier_preference_hint": {
@@ -51,6 +64,8 @@ class BoundedAgentLoopTests(unittest.TestCase):
                 },
                 {"status": "success"},
             ),
+            _policy_ok(POLICY_TOPICS[0]),
+            _policy_ok(POLICY_TOPICS[1]),
             (
                 {
                     "ok": True,
@@ -70,21 +85,42 @@ class BoundedAgentLoopTests(unittest.TestCase):
             ),
         ]
 
-        result = run_agent(
+        # Run 1 stops at hand-off H1: no draft before the officer confirms.
+        first = run_agent(
             item_id="INV-001",
             quantity_base=200,
             preparing_officer_id="OFFICER-1",
         )
 
+        self.assertEqual(first["reason"], "SUPPLIER_CONFIRMATION_REQUIRED")
+        self.assertIsNone(first["state"]["draft_id"])
+        self.assertEqual(first["state"]["iteration_count"], 4)
+
+        # The officer confirms; run 2 resumes from the saved state.
+        confirmed = confirm_supplier(
+            first["state"],
+            supplier_id="SUP-01",
+            officer_id="OFFICER-1",
+        )
+        result = run_agent(state=confirmed)
+
         self.assertEqual(
             [entry.args[0] for entry in mock_dispatch.call_args_list],
             [
                 "check_reorder_levels",
+                "lookup_policy",
+                "lookup_policy",
                 "compare_quotations",
                 "create_requisition_draft",
             ],
         )
-        self.assertEqual(result["state"]["iteration_count"], 3)
+        self.assertEqual(
+            mock_dispatch.call_args_list[-1].kwargs["supplier_confirmation"]["confirmed_by"],
+            "OFFICER-1",
+        )
+        self.assertEqual(result["reason"], "READY_FOR_HUMAN_APPROVAL")
+        # A resumed run starts a new count; the case data carries over.
+        self.assertEqual(result["state"]["iteration_count"], 1)
         self.assertEqual(
             result["state"]["reorder_result"]["items_to_reorder"][0]["item_id"],
             "INV-001",
@@ -94,7 +130,7 @@ class BoundedAgentLoopTests(unittest.TestCase):
             "SUP-01",
         )
         self.assertEqual(result["state"]["draft_id"], "REQ-100")
-        self.assertEqual(len(result["state"]["tool_history"]), 3)
+        self.assertEqual(len(result["state"]["tool_history"]), 5)
 
     @patch("src.agent.loop.dispatch_tool")
     def test_iteration_limit_hands_off_with_outstanding_step_and_state(
@@ -128,7 +164,7 @@ class BoundedAgentLoopTests(unittest.TestCase):
         )
         self.assertEqual(
             result["outstanding"],
-            "Compare quotations for inventory item INV-001.",
+            "Look up the procurement-policy rules for inventory item INV-001.",
         )
         self.assertIn(result["outstanding"], result["message"])
 
@@ -289,6 +325,124 @@ class BoundedAgentLoopTests(unittest.TestCase):
             ],
         )
         self.assertEqual(result["status"], "stopped")
+
+
+REORDER_OK = (
+    {"ok": True, "result": {
+        "items_to_reorder": [{"item_id": "INV-001", "suggested_reorder_quantity_base": 200}],
+        "unassessable_items": [],
+    }},
+    {"status": "success"},
+)
+
+
+class PolicyStepTests(unittest.TestCase):
+    """Contract section 1, step 2 and stop S6."""
+
+    @patch("src.agent.loop.dispatch_tool")
+    def test_policy_without_evidence_hands_off_before_comparison(self, mock_dispatch):
+        mock_dispatch.side_effect = [
+            REORDER_OK,
+            (
+                {"ok": True, "result": {"topic": POLICY_TOPICS[0], "status": "no_evidence"}},
+                {"status": "success"},
+            ),
+        ]
+
+        result = run_agent(item_id="INV-001", quantity_base=200)
+
+        self.assertEqual(result["reason"], "POLICY_NOT_FOUND")
+        self.assertIn(POLICY_TOPICS[0], result["message"])
+        self.assertIsNone(result["state"]["comparison_result"])
+        self.assertEqual(
+            [entry.args[0] for entry in mock_dispatch.call_args_list],
+            ["check_reorder_levels", "lookup_policy"],
+        )
+
+
+class SupplierConfirmationTests(unittest.TestCase):
+    """Hand-off H1: only an identified officer confirms, and only the computed supplier."""
+
+    STATE = {
+        "comparison_result": {"recommended_supplier_id": "SUP-01"},
+        "blocking_flags": [],
+    }
+
+    def test_confirmation_records_officer_and_time(self):
+        state = confirm_supplier(self.STATE, supplier_id="SUP-01", officer_id="OFFICER-1")
+
+        self.assertEqual(state["confirmed_supplier"]["supplier_id"], "SUP-01")
+        self.assertEqual(state["confirmed_supplier"]["confirmed_by"], "OFFICER-1")
+        self.assertTrue(state["confirmed_supplier"]["confirmed_at"])
+        self.assertNotIn("confirmed_supplier", self.STATE)  # input not modified
+
+    def test_a_different_supplier_or_missing_officer_is_refused(self):
+        with self.assertRaises(ValueError):
+            confirm_supplier(self.STATE, supplier_id="SUP-02", officer_id="OFFICER-1")
+        with self.assertRaises(ValueError):
+            confirm_supplier(self.STATE, supplier_id="SUP-01", officer_id=" ")
+
+    def test_blocked_comparison_cannot_be_confirmed(self):
+        blocked = dict(self.STATE, blocking_flags=["EXPIRED_QUOTATION:QUO-1001"])
+        with self.assertRaises(ValueError):
+            confirm_supplier(blocked, supplier_id="SUP-01", officer_id="OFFICER-1")
+
+
+class ResumeTests(unittest.TestCase):
+
+    def test_resume_takes_a_state_or_new_inputs_not_both(self):
+        with self.assertRaises(ValueError):
+            run_agent(state={"item": {"item_id": "INV-001"}}, item_id="INV-002")
+
+    @patch("src.agent.loop.dispatch_tool")
+    def test_resume_does_not_repeat_completed_steps(self, mock_dispatch):
+        mock_dispatch.side_effect = [REORDER_OK]
+        first = run_agent(item_id="INV-001")  # stops: quantity needs confirming
+
+        self.assertEqual(first["reason"], "QUANTITY_CONFIRMATION_REQUIRED")
+
+        saved = dict(first["state"], quantity=200)
+        mock_dispatch.side_effect = [_policy_ok(POLICY_TOPICS[0]), _policy_ok(POLICY_TOPICS[1]),
+                                     ({"ok": True, "result": {"recommended_supplier_id": None,
+                                                              "blocking_flags": ["X"]}},
+                                      {"status": "success"})]
+        second = run_agent(state=saved)
+
+        self.assertEqual(second["reason"], "POLICY_BLOCKING_FLAGS")
+        self.assertEqual(
+            [entry.args[0] for entry in mock_dispatch.call_args_list],
+            ["check_reorder_levels", "lookup_policy", "lookup_policy", "compare_quotations"],
+        )
+
+
+class PersistenceTests(unittest.TestCase):
+    """Contract section 6: every stop goes to the trace and the audit log."""
+
+    @patch("src.agent.loop.dispatch_tool")
+    def test_tool_calls_and_stop_are_written_to_trace_and_audit_log(self, mock_dispatch):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        mock_dispatch.side_effect = [REORDER_OK]
+
+        with tempfile.TemporaryDirectory() as directory:
+            trace_path = Path(directory) / "tool-calls.jsonl"
+            audit_path = Path(directory) / "audit-log.jsonl"
+            result = run_agent(item_id="INV-001", trace_path=trace_path, audit_log_path=audit_path)
+
+            trace_lines = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+            audit_lines = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+
+        self.assertEqual(len(trace_lines), 2)  # one tool call + the stop
+        self.assertEqual(trace_lines[-1]["event"], "agent_stop")
+        self.assertEqual(trace_lines[-1]["stop_reason"], "QUANTITY_CONFIRMATION_REQUIRED")
+        self.assertEqual({line["run_id"] for line in trace_lines}, {result["run_id"]})
+
+        self.assertEqual(len(audit_lines), 1)
+        self.assertEqual(audit_lines[0]["event_type"], "AGENT_RUN_STOPPED")
+        self.assertEqual(audit_lines[0]["stop_reason"], "QUANTITY_CONFIRMATION_REQUIRED")
+        self.assertEqual(audit_lines[0]["item_id"], "INV-001")
 
 
 if __name__ == "__main__":
