@@ -48,7 +48,8 @@ class IllegalStateTransitionError(Exception):
 class BlockingFlagsUnresolvedError(Exception):
     """Raised when submission for approval is attempted while unresolved
     policy blocking flags remain (e.g. MINIMUM_VALID_QUOTATIONS_NOT_MET,
-    EXCLUDED_SUPPLIER:*, EXPIRED_OR_INVALID_QUOTATION:*)."""
+    EXPIRED_OR_INVALID_QUOTATION:*). EXCLUDED_SUPPLIER:* is informational
+    since 12 Oct 2026: the quotation is already left out of the ranking."""
 
 
 @dataclass

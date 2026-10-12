@@ -146,6 +146,11 @@ def policy_check(
 
     statuses = []
     flags = []
+    # Policy 4.1 / US-06 AC2: an excluded supplier's quotation is flagged and left
+    # out of the count and the ranking. That exclusion is already enforced, so the
+    # flag is reported to the officer without blocking the case; too few remaining
+    # valid quotations still block through MINIMUM_VALID_QUOTATIONS_NOT_MET.
+    informational_flags = []
     valid_eligible_count = 0
     for quotation in quotations:
         supplier_id = str(quotation.get("supplier_id", ""))
@@ -158,7 +163,9 @@ def policy_check(
             "delivery_included", "delivery_days", "quotation_date", "validity_days",
         ))
         if excluded:
-            flags.append(f"EXCLUDED_SUPPLIER:{supplier_id}:{quotation.get('quotation_id', '')}")
+            informational_flags.append(
+                f"EXCLUDED_SUPPLIER:{supplier_id}:{quotation.get('quotation_id', '')}"
+            )
         if not valid:
             flags.append(f"EXPIRED_OR_INVALID_QUOTATION:{quotation.get('quotation_id', '')}")
         if not complete:
@@ -186,6 +193,7 @@ def policy_check(
         "minimum_valid_quotations_required": required_count,
         "approval_level": approval_level,
         "blocking_flags": list(dict.fromkeys(flags)),
+        "informational_flags": list(dict.fromkeys(informational_flags)),
     }
 
 
@@ -320,6 +328,7 @@ def compare_quotations(
         "recommended_supplier_id": ranked[0]["supplier_id"] if ranked else None,
         "recommendation_basis": recommendation_basis,
         "blocking_flags": list(dict.fromkeys(final_policy["blocking_flags"] + calculation_flags)),
+        "informational_flags": final_policy["informational_flags"],
         "approval_level": final_policy["approval_level"],
         "minimum_valid_quotations_required": final_policy["minimum_valid_quotations_required"],
     }

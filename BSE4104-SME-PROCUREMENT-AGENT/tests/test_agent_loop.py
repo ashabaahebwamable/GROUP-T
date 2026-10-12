@@ -433,6 +433,36 @@ class ResumeTests(unittest.TestCase):
         )
 
 
+class AsOfDateTests(unittest.TestCase):
+
+    @patch("src.agent.loop.dispatch_tool")
+    def test_as_of_date_is_kept_in_state_and_passed_to_comparison_and_draft(self, mock_dispatch):
+        comparison = (
+            {"ok": True, "result": {"recommended_supplier_id": "SUP-01", "blocking_flags": []}},
+            {"status": "success"},
+        )
+        draft = ({"ok": True, "result": {"requisition_id": "REQ-1"}}, {"status": "success"})
+        mock_dispatch.side_effect = [
+            REORDER_OK, _policy_ok(POLICY_TOPICS[0]), _policy_ok(POLICY_TOPICS[1]),
+            comparison, draft,
+        ]
+
+        first = run_agent(item_id="INV-001", quantity_base=200,
+                          preparing_officer_id="OFFICER-1", as_of_date="2026-08-27")
+        confirmed = confirm_supplier(first["state"], supplier_id="SUP-01", officer_id="OFFICER-1")
+        second = run_agent(state=confirmed)
+
+        self.assertEqual(second["reason"], "READY_FOR_HUMAN_APPROVAL")
+        dated = {c.args[0]: c.kwargs.get("as_of_date") for c in mock_dispatch.call_args_list}
+        self.assertEqual(dated["compare_quotations"], "2026-08-27")
+        self.assertEqual(dated["create_requisition_draft"], "2026-08-27")  # kept across resume
+        self.assertIsNone(dated["check_reorder_levels"])
+
+    def test_resume_cannot_change_the_as_of_date(self):
+        with self.assertRaises(ValueError):
+            run_agent(state={"item": {"item_id": "INV-001"}}, as_of_date="2026-08-27")
+
+
 class PersistenceTests(unittest.TestCase):
     """Contract section 6: every stop goes to the trace and the audit log."""
 

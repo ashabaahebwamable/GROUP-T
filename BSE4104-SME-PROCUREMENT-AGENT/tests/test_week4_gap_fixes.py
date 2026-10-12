@@ -100,6 +100,33 @@ class DraftPreCheckTests(unittest.TestCase):
             )
         return result, trace, draft_tool
 
+    def test_as_of_date_reaches_comparison_and_draft_pre_check(self):
+        """Finding 2 (stale data): a person-set as-of date, not a model argument."""
+        comparison = {"recommended_supplier_id": "SUP-01", "blocking_flags": []}
+        compare = MagicMock(return_value=comparison)
+        draft_tool = MagicMock(return_value=VALID_DRAFT)
+        with patch.dict(TOOL_REGISTRY, {"compare_quotations": compare,
+                                        "create_requisition_draft": draft_tool}), \
+                patch("src.agent.tools_router.compare_quotations", compare):
+            dispatch_tool("compare_quotations", {"item_id": "INV-001", "quantity_base": 200},
+                          as_of_date="2026-08-27")
+            result, _ = dispatch_tool("create_requisition_draft", dict(DRAFT_ARGS),
+                                      supplier_confirmation=self.CONFIRMED,
+                                      as_of_date="2026-08-27")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual([c.kwargs.get("as_of_date") for c in compare.call_args_list],
+                         ["2026-08-27", "2026-08-27"])
+
+    def test_model_cannot_supply_an_as_of_date(self):
+        result, _ = dispatch_tool(
+            "compare_quotations",
+            {"item_id": "INV-001", "quantity_base": 200, "as_of_date": "2026-08-27"},
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "TOOL_ARGUMENT_ERROR")
+
     def test_draft_without_officer_confirmation_is_refused(self):
         """Hand-off H1 (contract section 1): no draft until an officer confirms."""
         clean = {"recommended_supplier_id": "SUP-01", "blocking_flags": []}

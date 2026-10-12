@@ -303,7 +303,7 @@ All monetary and unit calculations are performed by deterministic application co
 7. normalises quotation units to the inventory base unit (policy §3.2);
 8. calculates landed cost per base unit (policy §3.1);
 9. ranks by landed cost, breaking ties on delivery days;
-10. adds blocking flags (e.g. `MINIMUM_VALID_QUOTATIONS_NOT_MET`, `EXCLUDED_SUPPLIER`, `EXPIRED_OR_INVALID_QUOTATION`); and
+10. adds blocking flags (e.g. `MINIMUM_VALID_QUOTATIONS_NOT_MET`, `EXPIRED_OR_INVALID_QUOTATION`) and informational flags (`EXCLUDED_SUPPLIER`: the quotation is already left out of the count and the ranking, so it does not block the case by itself); and
 11. returns the required approval level (policy §5).
 
 The model must not be treated as the authoritative calculator for procurement figures.

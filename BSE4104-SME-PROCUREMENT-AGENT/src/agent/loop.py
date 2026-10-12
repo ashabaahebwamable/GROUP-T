@@ -62,6 +62,7 @@ def initial_case_state(
     quantity_base: float | int | None = None,
     unit: str | None = None,
     preparing_officer_id: str | None = None,
+    as_of_date: str | None = None,
 ) -> dict[str, Any]:
     """Create the bounded agent's initial case state.
 
@@ -72,6 +73,7 @@ def initial_case_state(
         "item": {"item_id": item_id} if item_id else None,
         "quantity": quantity_base,
         "unit": unit,
+        "as_of_date": as_of_date,
         "policy_evidence": {},
         "comparison_result": None,
         "blocking_flags": [],
@@ -549,14 +551,24 @@ def run_agent_step(
     tool_name = plan.get("tool_name")
     arguments = plan.get("arguments") or {}
 
+    # The H1 confirmation and the as-of date come from case state, never
+    # from the plan.
+    as_of_date = current_state.get("as_of_date")
+
     if tool_name == "create_requisition_draft":
-        # The H1 confirmation comes from case state, never from the plan.
         tool_result, trace_event = dispatch_tool(
             tool_name,
             arguments,
             supplier_confirmation=deepcopy(
                 current_state.get("confirmed_supplier")
             ),
+            as_of_date=as_of_date,
+        )
+    elif tool_name == "compare_quotations" and as_of_date is not None:
+        tool_result, trace_event = dispatch_tool(
+            tool_name,
+            arguments,
+            as_of_date=as_of_date,
         )
     else:
         tool_result, trace_event = dispatch_tool(
@@ -597,6 +609,7 @@ def run_agent(
     quantity_base: float | int | None = None,
     unit: str | None = None,
     preparing_officer_id: str | None = None,
+    as_of_date: str | None = None,
     state: dict[str, Any] | None = None,
     planner: Planner = default_plan,
     max_steps: int | None = None,
@@ -614,6 +627,10 @@ def run_agent(
     :func:`confirm_supplier`) to resume a case instead of starting one. The
     case data carries over unchanged; the iteration count starts again
     (contract section 2).
+
+    ``as_of_date`` (ISO date) fixes the date quotation validity is judged on,
+    for evaluations and demos on synthetic data. It is kept in the case state
+    so a resumed run uses the same date. ``None`` means today.
 
     Every run appends its tool calls and its stop to ``trace_path`` (default
     ``evidence/traces/tool-calls.jsonl``) and its stop to ``audit_log_path``
@@ -645,11 +662,14 @@ def run_agent(
             quantity_base=quantity_base,
             unit=unit,
             preparing_officer_id=preparing_officer_id,
+            as_of_date=as_of_date,
         )
     else:
         if any(
             value is not None
-            for value in (item_id, quantity_base, unit, preparing_officer_id)
+            for value in (
+                item_id, quantity_base, unit, preparing_officer_id, as_of_date
+            )
         ):
             raise ValueError(
                 "Pass either a saved state to resume or new case inputs, "
@@ -816,6 +836,7 @@ def _persist_run(
         "item_id": item_id,
         "draft_id": state.get("draft_id"),
         "iteration_count": state.get("iteration_count"),
+        "as_of_date": state.get("as_of_date"),
     }
 
     tools_router._write_tool_trace(

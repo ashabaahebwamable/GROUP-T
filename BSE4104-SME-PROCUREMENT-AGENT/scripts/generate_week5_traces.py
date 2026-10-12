@@ -25,13 +25,16 @@ Regenerated on 12 Oct 2026 after the contract gaps were closed (hand-off H1, the
 lookup_policy step, resume, persisted stops). Trace 1 and Trace 3 phase B now show a
 real resume from the saved case state.
 
-Two things are simulated and each trace says so in its "environment" block:
-  * The clock for compare_quotations is pinned. On the real clock every synthetic
-    quotation has lapsed (Trace 1c). Across the whole corpus the only flag-free
-    (item, date) combinations are INV-003 on or before 2026-08-27, so Trace 1 pins that
-    date. Trace 1b pins 2026-09-01 (the scripts/demo_week4.py convention) to show the
-    project's reference cement case on its own.
+Two things are set or simulated and each trace says so in its "environment" block:
+  * The as-of date. On the real clock every synthetic quotation has lapsed (Trace 1c),
+    so the other traces pass run_agent(as_of_date=...), the person-set case input the
+    loop and router use for quotation validity (no patching). Trace 1 uses 2026-08-27
+    for INV-003; Trace 1b uses 2026-09-01 (the scripts/demo_week4.py convention) for
+    the project's reference cement case.
   * Trace 3's outage is a mock that raises ConnectionError.
+
+Updated again on 12 Oct 2026: EXCLUDED_SUPPLIER became an informational flag, so the
+reference cement case (Trace 1b) now reaches a draft.
 """
 
 from __future__ import annotations
@@ -63,24 +66,26 @@ HAPPY_CASE = {
     "quantity_base": 460,   # the tool's own suggested reorder quantity
     "unit": "piece",
     "preparing_officer_id": "officer-ashley",
+    "as_of_date": HAPPY_DATE,
 }
 REFERENCE_CASE = {          # the design document's reference mis-ranking case
     "item_id": "INV-001",
     "quantity_base": 10000,
     "unit": "kg",
     "preparing_officer_id": "officer-ashley",
+    "as_of_date": REFERENCE_DATE,
 }
+REAL_CLOCK_CASE = {**HAPPY_CASE, "as_of_date": None}
 
 
 # ---------------------------------------------------------------------------
 # Isolation
 # ---------------------------------------------------------------------------
 class Isolated:
-    """Context manager: drafts go to a temp copy; optionally pin the comparison date
-    and/or replace tools."""
+    """Context manager: drafts, traces and audit events go to a temp folder; optionally
+    replace tools."""
 
-    def __init__(self, pin_date: str | None = None, overrides: dict | None = None):
-        self.pin_date = pin_date
+    def __init__(self, overrides: dict | None = None):
         self.overrides = overrides or {}
         self.stack = ExitStack()
 
@@ -105,16 +110,6 @@ class Isolated:
             ),
             "lookup_policy": functools.partial(lookup_policy, trace_path=None),
         }
-        if self.pin_date:
-            pinned = functools.partial(
-                procurement.compare_quotations, as_of_date=self.pin_date
-            )
-            registry["compare_quotations"] = pinned
-            # The draft pre-check recomputes the comparison through this module-level
-            # name, so it must be pinned as well or the draft step refuses.
-            self.stack.enter_context(
-                patch.object(tools_router, "compare_quotations", pinned)
-            )
         registry.update(self.overrides)
         self.stack.enter_context(patch.dict(tools_router.TOOL_REGISTRY, registry))
         return self
@@ -270,11 +265,12 @@ WRITES_NOTE = (
 )
 
 
-def _env(pin_date: str | None) -> dict[str, str]:
+def _env(as_of_date: str | None) -> dict[str, str]:
     clock = (
-        f"compare_quotations pinned to as_of_date={pin_date}"
-        if pin_date
-        else "real system clock (no pinning)"
+        f"run_agent(as_of_date={as_of_date!r}): quotation validity judged on that date "
+        "(a person-set case input passed to the router by code, not a tool argument)"
+        if as_of_date
+        else "real system clock (as_of_date=None)"
     )
     return {"planner": PLANNER_NOTE, "clock": clock, "writes": WRITES_NOTE}
 
@@ -283,7 +279,7 @@ def _env(pin_date: str | None) -> dict[str, str]:
 # The traces
 # ---------------------------------------------------------------------------
 def trace_1() -> None:
-    with Isolated(pin_date=HAPPY_DATE) as iso:
+    with Isolated() as iso:
         run_1 = loop.run_agent(**HAPPY_CASE)
         recommended = run_1["state"]["comparison_result"]["recommended_supplier_id"]
         confirmed_state = loop.confirm_supplier(
@@ -357,55 +353,92 @@ def trace_1() -> None:
             "Every stop was persisted: one AGENT_RUN_STOPPED audit event per run, and "
             "the draft's audit event records the confirming officer "
             "(persisted_audit_events).",
-            "WHY THIS ITEM AND DATE: INV-003 with the clock pinned to 2026-08-27 is the "
-            "only flag-free case in the corpus. Searching every date from 2026-08-15 to "
-            "2026-10-13 for the four items that have quotations, no other combination "
-            "reaches a draft. See Traces 1b and 1c and the README for why.",
+            "WHY THIS ITEM AND DATE: INV-003 on 2026-08-27 was the only flag-free case in "
+            "the corpus while EXCLUDED_SUPPLIER blocked. Since 12 Oct that flag is "
+            "informational, and the reference cement case also reaches a draft (Trace "
+            "1b). On the real clock no case does, because the quotations have lapsed "
+            "(Trace 1c).",
         ],
     }
     _write("trace-1-happy-path.json", payload)
 
-    with Isolated(pin_date=REFERENCE_DATE) as iso:
+    with Isolated() as iso:
         reference = loop.run_agent(**REFERENCE_CASE)
+        ref_recommended = reference["state"]["comparison_result"]["recommended_supplier_id"]
+        reference_2 = loop.run_agent(
+            state=loop.confirm_supplier(
+                reference["state"], supplier_id=ref_recommended, officer_id=OFFICER_ID
+            )
+        )
         reference_audit = iso.audit_events()
 
+    informational = reference["state"]["comparison_result"].get("informational_flags", [])
+    ranked_ids = [
+        q["quotation_id"]
+        for q in reference["state"]["comparison_result"]["ranked_quotations"]
+    ]
     _write(
         "trace-1b-reference-case-excluded-supplier.json",
-        _record(
-            "W5-04-trace-1b",
-            "Supplementary: the project's reference cement case stops at S4",
-            "The reference case from synthetic-data-design (cement, 10,000 kg) with the "
-            "clock inside the quotations' validity window. The excluded supplier's "
-            "quotation (QUO-1004) is correctly left out of the ranking, yet the loop "
-            "hands off because the comparison lists it as a blocking flag.",
-            ["S4 (policy override needed)"],
-            REFERENCE_CASE,
-            _env(REFERENCE_DATE),
-            reference,
-            [
-                "The loop followed the contract: section 5 (S4) names an excluded supplier "
-                "as an example of a blocking flag, so it halted and handed off.",
-                "compare_quotations itself did the right thing under policy 4.1: QUO-1004 "
-                "is absent from the ranking and a recommendation (SUP-01, QUO-1001) was "
-                "still produced from three valid quotations.",
-                "FINDING FOR THE TEAM TO DECIDE: user story US-06 AC2 says a quotation from "
-                "an excluded supplier is 'flagged and excluded from the recommendation', "
-                "and policy 4.1 says only that it must not be recommended or counted. "
-                "Neither says it blocks the whole requisition. As built, the project's own "
-                "reference case (the one synthetic-data-design says to rehearse for the "
-                "final presentation) cannot reach a draft through the router.",
-                "scripts/demo_week4.py reaches a draft for INV-001 only by calling the tools "
-                "directly and passing policy_flags=() by hand, which discards this flag.",
-                "Options for the owners: treat an already-excluded quotation as an "
-                "informational flag when enough valid quotations remain, or change the "
-                "reference case and final demo. This needs a decision, not a test fix.",
+        {
+            "trace_id": "W5-04-trace-1b",
+            "title": "The project's reference cement case: the excluded supplier is "
+                     "reported, left out, and the case reaches a draft",
+            "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "scenario": "The reference case from synthetic-data-design (cement, 10,000 "
+                        "kg) inside the quotations' validity window. The excluded "
+                        "supplier's quotation (QUO-1004) is flagged for the officer and "
+                        "left out of the count and the ranking; three valid quotations "
+                        "remain, so the case continues.",
+            "contract_codes": [
+                "H1 (officer must confirm the supplier)",
+                "H2 (draft created, officer must submit)",
             ],
-            reference_audit,
-        ),
+            "inputs": REFERENCE_CASE,
+            "environment": _env(REFERENCE_DATE),
+            "phases": [
+                _phase(
+                    "Run 1 - stop at H1",
+                    "Reorder check, two policy lookups, quotation comparison.",
+                    reference,
+                    [
+                        f"Informational flags reported to the officer: {informational}. "
+                        f"Blocking flags: {reference['state']['blocking_flags'] or 'none'}.",
+                        f"Ranked quotations: {ranked_ids}. QUO-1004 is not among them, "
+                        "so the excluded supplier can never be recommended (policy 4.1, "
+                        "US-06 AC2).",
+                        f"Recommended supplier {ref_recommended}; hand-off H1 "
+                        f"({reference['reason']}).",
+                    ],
+                ),
+                _phase(
+                    "Run 2 - officer confirms, resume to the draft",
+                    f"loop.confirm_supplier(supplier_id={ref_recommended!r}), then "
+                    "run_agent(state=...).",
+                    reference_2,
+                    [
+                        f"Draft {reference_2['state']['draft_id']} created, then hand-off "
+                        f"H2 ({reference_2['reason']}). The project's reference case now "
+                        "reaches a draft through the router, with no flags discarded by "
+                        "hand.",
+                    ],
+                ),
+            ],
+            "persisted_audit_events": reference_audit,
+            "observations": [
+                "RESOLVES README finding 1 (decided 12 Oct 2026): EXCLUDED_SUPPLIER is an "
+                "informational flag. The exclusion itself is still enforced, because the "
+                "quotation is not counted towards the minimum or ranked, and the draft "
+                "tool refuses an excluded supplier. If too few valid quotations remained, "
+                "MINIMUM_VALID_QUOTATIONS_NOT_MET would still block (S4).",
+                "Before this change the same run stopped at S4 after 4 calls, and "
+                "scripts/demo_week4.py could only reach a draft by passing "
+                "policy_flags=() by hand.",
+            ],
+        },
     )
 
-    with Isolated(pin_date=None) as iso:
-        stale = loop.run_agent(**HAPPY_CASE)
+    with Isolated() as iso:
+        stale = loop.run_agent(**REAL_CLOCK_CASE)
         stale_audit = iso.audit_events()
 
     _write(
@@ -413,11 +446,11 @@ def trace_1() -> None:
         _record(
             "W5-04-trace-1c",
             "Supplementary: the Trace 1 case on the real clock stops at S4",
-            "Identical inputs to Trace 1 with no date pinning. The synthetic quotations "
-            "have passed their validity windows, so the comparison returns blocking "
-            "flags and the loop correctly refuses to draft.",
+            "Identical inputs to Trace 1 with as_of_date=None (today). The synthetic "
+            "quotations have passed their validity windows, so the comparison returns "
+            "blocking flags and the loop correctly refuses to draft.",
             ["S4 (policy override needed)"],
-            HAPPY_CASE,
+            REAL_CLOCK_CASE,
             _env(None),
             stale,
             [
@@ -427,10 +460,12 @@ def trace_1() -> None:
                 "quotations.csv is dated 20-28 Aug 2026 with 7-30 days of validity, so none "
                 "(0 of 10) is valid on the real date. No end-to-end run through the router can succeed "
                 "on today's clock.",
-                "FINDING: the router's draft pre-check calls compare_quotations without an "
-                "as_of_date, so a caller cannot pin the date through the router; Week 7 "
-                "evaluation scenarios will need refreshed quotation dates or a way to "
-                "supply an as-of date.",
+                "RESOLVED 12 Oct 2026 (decided: keep the data, add an as-of date): "
+                "run_agent(as_of_date=...) is a person-set case input that the loop "
+                "passes to the router for the comparison and the draft pre-check, and "
+                "keeps across a resume. Evaluations and demos set it explicitly; the "
+                "model cannot, because it is not a tool argument. Traces 1, 1b, 2 and 3 "
+                "use it.",
                 "FINDING (coverage): only 4 of the 15 inventory items (INV-001, 003, 005, "
                 "006) have any quotation, so most reorder signals can never get past "
                 "compare_quotations.",
@@ -448,12 +483,13 @@ def trace_2() -> None:
         if description.lower() in row["item_name"].lower()
     ]
 
-    with Isolated(pin_date=REFERENCE_DATE) as iso:
+    with Isolated() as iso:
         result = loop.run_agent(
             item_id=None,
             quantity_base=REFERENCE_CASE["quantity_base"],
             unit=REFERENCE_CASE["unit"],
             preparing_officer_id=REFERENCE_CASE["preparing_officer_id"],
+            as_of_date=REFERENCE_DATE,
         )
         ambiguous_audit = iso.audit_events()
 
@@ -469,6 +505,7 @@ def trace_2() -> None:
             "candidate_items_matching_text": candidates,
             "item_id_passed_to_loop": None,
             "quantity_base": REFERENCE_CASE["quantity_base"],
+            "as_of_date": REFERENCE_DATE,
         },
         {
             **_env(REFERENCE_DATE),
@@ -500,12 +537,12 @@ def trace_3() -> None:
 
     # Phase A: persistent outage -> retry once -> hand-off
     outage = FlakyTool(real_reorder, fail_times=None)
-    with Isolated(pin_date=HAPPY_DATE, overrides={"check_reorder_levels": outage}):
+    with Isolated(overrides={"check_reorder_levels": outage}):
         phase_a = loop.run_agent(**HAPPY_CASE)
 
     # Phase B: the tool returns -> the officer resumes the saved case from phase A,
     # stops at H1, confirms the supplier, and resumes again to the draft
-    with Isolated(pin_date=HAPPY_DATE) as iso:
+    with Isolated() as iso:
         phase_b = loop.run_agent(state=phase_a["state"])
         recommended = phase_b["state"]["comparison_result"]["recommended_supplier_id"]
         phase_b2 = loop.run_agent(
@@ -517,7 +554,7 @@ def trace_3() -> None:
 
     # Phase C: transient outage -> the single retry succeeds inside the same run
     transient = FlakyTool(real_reorder, fail_times=1)
-    with Isolated(pin_date=HAPPY_DATE, overrides={"check_reorder_levels": transient}):
+    with Isolated(overrides={"check_reorder_levels": transient}):
         phase_c = loop.run_agent(**HAPPY_CASE)
 
     phase = _phase

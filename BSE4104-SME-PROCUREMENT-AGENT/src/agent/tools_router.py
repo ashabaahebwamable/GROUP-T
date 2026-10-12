@@ -278,17 +278,20 @@ def _validate_output(tool_name: str, output: Any) -> str | None:
 # ---------------------------------------------------------------------------
 def _check_draft_against_comparison(
     arguments: dict[str, Any],
+    as_of_date: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """
     Re-run the deterministic comparison for a draft request.
 
     The router does not trust the model to carry blocking flags or the
     recommended supplier forward: it recomputes both and compares the
-    model's supplier with the computed one.
+    model's supplier with the computed one. It uses the same as-of date as
+    the comparison the officer saw.
     """
     comparison = compare_quotations(
         arguments["item_id"],
         arguments["quantity_base"],
+        as_of_date=as_of_date,
     )
     supplier_check = check_model_vs_computed(
         field="recommended_supplier_id",
@@ -306,6 +309,7 @@ def dispatch_tool(
     arguments: dict[str, Any] | None = None,
     *,
     supplier_confirmation: dict[str, Any] | None = None,
+    as_of_date: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Dispatch one model-requested tool call.
@@ -328,6 +332,11 @@ def dispatch_tool(
     (``supplier_id``, ``confirmed_by``, ``confirmed_at``). It is passed by
     code, never by the model: it is not in any tool schema, so the model
     cannot supply it. A draft is refused without it.
+
+    ``as_of_date`` (ISO date) is the date quotation validity is judged on, for
+    ``compare_quotations`` and the draft pre-check. It is a case input set by a
+    person and passed by code; it is not a tool argument, so the model cannot
+    pick a date that makes an expired quotation valid. ``None`` means today.
     """
     arguments = arguments or {}
 
@@ -358,8 +367,11 @@ def dispatch_tool(
         # --------------------------------------------------------------
         # Drafts: recompute flags and supplier instead of trusting the model
         # --------------------------------------------------------------
+        if tool_name == "compare_quotations" and as_of_date is not None:
+            call_arguments["as_of_date"] = as_of_date
+
         if tool_name == "create_requisition_draft":
-            comparison, checks = _check_draft_against_comparison(arguments)
+            comparison, checks = _check_draft_against_comparison(arguments, as_of_date)
 
             # Flags first: with no eligible quotation there is no computed
             # supplier, and the real reason for refusing is the policy flag.

@@ -61,7 +61,7 @@ The allow-list is the four tools in `TOOL_REGISTRY` (`src/agent/tools_router.py`
 |---|---|---|---|---|
 | 1 | `check_reorder_levels` | An item ID is known and there is no reorder result yet. | `reorder_result` | None (read-only) |
 | 2 | `lookup_policy` | The item needs reordering, the quantity is known, and a rule in `POLICY_TOPICS` has no evidence yet. Called once per topic: the quotation minimum and the approval threshold. | `policy_evidence[topic]` | Appends the retrieval to `evidence/traces/retrieval.jsonl` (Week 3 log) |
-| 3 | `compare_quotations` | Both policy rules were found and there is no comparison yet. | `comparison_result`, `blocking_flags` | None. The router attaches any confirmed supplier preference as `supplier_preference_hint` after ranking |
+| 3 | `compare_quotations` | Both policy rules were found and there is no comparison yet. Judged on the case's `as_of_date` | `comparison_result` (with `informational_flags`), `blocking_flags` | None. The router attaches any confirmed supplier preference as `supplier_preference_hint` after ranking |
 | 4 | `create_requisition_draft` | The comparison has a recommendation and no blocking flags, an officer has confirmed that exact supplier at H1, a preparing officer ID is known, and no draft exists yet. | `draft_id` | Writes one `DRAFT` row to `data/requisitions.csv` and a `REQUISITION_DRAFT_CREATED` audit event, both recording the confirming officer |
 
 Preconditions the router enforces for the draft, whatever the planner asks for: it recomputes the comparison and refuses the draft if there are blocking flags (`POLICY_BLOCKING_FLAGS`), if the requested supplier differs from the computed one (`MODEL_VALUE_MISMATCH`), or if no officer confirmation for that supplier is passed (`SUPPLIER_NOT_CONFIRMED`). The confirmation is passed by code from the case state. It is not in any tool schema, so the model cannot supply it.
@@ -77,6 +77,7 @@ The case state is the dictionary built by `initial_case_state()` in `src/agent/l
 | `item` | `{"item_id": ...}`, or `None` if no item was identified | Person (case input) |
 | `quantity`, `unit` | Requested quantity in base units, and its unit | Person (case input, or when resuming after `QUANTITY_CONFIRMATION_REQUIRED`) |
 | `preparing_officer_id` | The officer preparing the requisition | Person (case input) |
+| `as_of_date` | Date quotation validity is judged on; `None` means today. Kept across a resume and passed by code to the comparison and the draft pre-check, never a tool argument | Person (case input; evaluations and demos) |
 | `reorder_result` | Output of `check_reorder_levels` | Code (tool result) |
 | `policy_evidence` | One `lookup_policy` result per topic: status, section, rule text, source | Code (tool result) |
 | `comparison_result` | Output of `compare_quotations`, including the recommended supplier and any preference hint | Code (tool result) |
@@ -107,7 +108,7 @@ The agent halts on any of the following, preserves the case state and hands off 
 | S1 | **Iteration limit.** The sixth tool call has completed and the goal step is not done. | US-11 criterion 1, charter |
 | S2 | **Tool failed twice.** A tool returned `TOOL_EXECUTION_ERROR` or `TOOL_OUTPUT_INVALID`, was retried once, and failed again. | US-11 criterion 2, matrix row 18 |
 | S3 | **Disallowed request.** The model requested a tool outside the allow-list (`TOOL_NOT_ALLOWED`). The call is blocked and logged, and the run stops instead of letting the model try another route. | US-11 criterion 3, charter |
-| S4 | **Policy override needed.** The comparison returned blocking flags (`POLICY_BLOCKING_FLAGS`), for example too few valid quotations, an expired quotation or an excluded supplier. Only a person can resolve or override a rule. | US-06, US-07 criterion 3, project definition §11 |
+| S4 | **Policy override needed.** The comparison returned blocking flags (`POLICY_BLOCKING_FLAGS`), for example too few valid quotations or an expired quotation. Only a person can resolve or override a rule. A quotation from an excluded supplier is an informational flag, not a stop: it is already left out of the count and the ranking (agreed 12 Oct, section 9 item 11). | US-06, US-07 criterion 3, project definition §11 |
 | S5 | **Required input missing or nothing to do.** The item is unknown or ambiguous, the quantity or unit is missing, or no item is below its reorder level. | Matrix rows 1 and 15, charter |
 | S6 | **Policy not found.** `lookup_policy` returned `no_evidence` for a rule the case needs (quotation minimum or approval threshold). | US-10, matrix row 17 |
 | S7 | **Model disagrees with computed value.** The router returned `MODEL_VALUE_MISMATCH`, so the model asked for a draft with a supplier other than the computed recommendation. | Principle 1, US-05 criterion 1 |
@@ -126,7 +127,7 @@ The agent halts on any of the following, preserves the case state and hands off 
 | S1 | `ITERATION_LIMIT_REACHED` | Yes (tests) |
 | S2 | `TOOL_FAILED_AFTER_RETRY` | Yes (Trace 3A) |
 | S3 | `TOOL_NOT_ALLOWED` | Yes; the run stops and is not retried (tests) |
-| S4 | `POLICY_BLOCKING_FLAGS`, `NO_RECOMMENDED_SUPPLIER` | Yes (Traces 1b, 1c) |
+| S4 | `POLICY_BLOCKING_FLAGS`, `NO_RECOMMENDED_SUPPLIER` | Yes (Trace 1c) |
 | S5 | `AMBIGUOUS_ITEM`, `ITEM_NOT_FOUND`, `REORDER_STATUS_UNASSESSABLE`, `MISSING_QUANTITY`, `QUANTITY_CONFIRMATION_REQUIRED`, `MISSING_PREPARING_OFFICER`, `NO_REORDER_REQUIRED` | Yes (Trace 2). `NO_REORDER_REQUIRED` ends with status `stopped`, not `handoff`, because there is nothing to hand off |
 | S6 | `POLICY_NOT_FOUND` | Yes (tests) |
 | S7 | `MODEL_VALUE_MISMATCH` | Yes, in the router; the rule-based planner cannot trigger it |
@@ -216,6 +217,6 @@ Added on 12 Oct after checking the merged Week 5 code and traces (`evidence/trac
 8. **Stop codes.** The code uses descriptive `stop_reason` strings (section 5 mapping). Decide whether to emit the contract codes as well, or to adopt the strings as the codes.
 9. ~~**`run_agent` cannot resume.**~~ Built 12 Oct: `run_agent(state=...)`.
 10. ~~**Stops are not persisted.**~~ Built 12 Oct: tool trace and audit log. The `expectedFailure` marker was removed.
-11. **An already-excluded quotation blocks the whole case** (Trace 1b). `compare_quotations` drops QUO-1004 from the ranking but still raises `EXCLUDED_SUPPLIER` as a blocking flag, so the reference case stops at S4. Decide whether this flag should be informational.
-12. **Quotation data is stale** (Trace 1c). No quotation is valid on today's date, so on the real clock every case stops at S4. Refresh the dates before the Week 7 evaluation.
+11. ~~**An already-excluded quotation blocks the whole case.**~~ Decided 12 Oct: `EXCLUDED_SUPPLIER` is an informational flag (`informational_flags` in the comparison). The quotation is still not counted or ranked, and too few remaining valid quotations still block. The reference cement case now reaches a draft (Trace 1b).
+12. ~~**Quotation data is stale.**~~ Decided 12 Oct: keep the synthetic data and set the date explicitly. `run_agent(as_of_date=...)` is a person-set case input passed by code to the comparison and the draft pre-check (section 4). On the real clock every case still stops at S4 (Trace 1c), which is correct.
 13. ~~**The Week 5 traces predate items 3, 7, 9 and 10.**~~ Regenerated 12 Oct: Trace 1 shows H1, the officer's confirmation and a resume to H2; Trace 3 phase B resumes from phase A's saved state; every trace lists its persisted audit events.

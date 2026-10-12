@@ -1,8 +1,8 @@
 {
   "trace_id": "W5-04-trace-1c",
   "title": "Supplementary: the Trace 1 case on the real clock stops at S4",
-  "generated_utc": "2026-10-12T17:24:33+00:00",
-  "scenario": "Identical inputs to Trace 1 with no date pinning. The synthetic quotations have passed their validity windows, so the comparison returns blocking flags and the loop correctly refuses to draft.",
+  "generated_utc": "2026-10-12T17:37:33+00:00",
+  "scenario": "Identical inputs to Trace 1 with as_of_date=None (today). The synthetic quotations have passed their validity windows, so the comparison returns blocking flags and the loop correctly refuses to draft.",
   "contract_codes": [
     "S4 (policy override needed)"
   ],
@@ -10,11 +10,12 @@
     "item_id": "INV-003",
     "quantity_base": 460,
     "unit": "piece",
-    "preparing_officer_id": "officer-ashley"
+    "preparing_officer_id": "officer-ashley",
+    "as_of_date": null
   },
   "environment": {
     "planner": "default_plan (deterministic rules; no model call, no API quota used)",
-    "clock": "real system clock (no pinning)",
+    "clock": "real system clock (as_of_date=None)",
     "writes": "requisition drafts, the loop's tool trace and all audit events written to a temporary folder only; lookup_policy retrieval logging switched off"
   },
   "outcome": {
@@ -190,6 +191,7 @@
             "EXPIRED_OR_INVALID_QUOTATION:QUO-1007",
             "MINIMUM_VALID_QUOTATIONS_NOT_MET:required=2:found=0"
           ],
+          "informational_flags": [],
           "approval_level": "operations_manager",
           "minimum_valid_quotations_required": 2,
           "supplier_preference_hint": null
@@ -227,6 +229,7 @@
     },
     "quantity": 460,
     "unit": "piece",
+    "as_of_date": null,
     "policy_evidence": {
       "minimum number of quotations required": {
         "topic": "minimum number of quotations required",
@@ -289,6 +292,7 @@
         "EXPIRED_OR_INVALID_QUOTATION:QUO-1007",
         "MINIMUM_VALID_QUOTATIONS_NOT_MET:required=2:found=0"
       ],
+      "informational_flags": [],
       "approval_level": "operations_manager",
       "minimum_valid_quotations_required": 2,
       "supplier_preference_hint": null
@@ -359,6 +363,7 @@
   },
   "persisted_audit_events": [
     {
+      "as_of_date": null,
       "draft_id": null,
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",
@@ -371,7 +376,7 @@
   "observations": [
     "The loop behaved correctly: with too few valid quotations it handed off with POLICY_BLOCKING_FLAGS instead of drafting.",
     "FINDING (data staleness): every quotation in knowledge/records/quotations.csv is dated 20-28 Aug 2026 with 7-30 days of validity, so none (0 of 10) is valid on the real date. No end-to-end run through the router can succeed on today's clock.",
-    "FINDING: the router's draft pre-check calls compare_quotations without an as_of_date, so a caller cannot pin the date through the router; Week 7 evaluation scenarios will need refreshed quotation dates or a way to supply an as-of date.",
+    "RESOLVED 12 Oct 2026 (decided: keep the data, add an as-of date): run_agent(as_of_date=...) is a person-set case input that the loop passes to the router for the comparison and the draft pre-check, and keeps across a resume. Evaluations and demos set it explicitly; the model cannot, because it is not a tool argument. Traces 1, 1b, 2 and 3 use it.",
     "FINDING (coverage): only 4 of the 15 inventory items (INV-001, 003, 005, 006) have any quotation, so most reorder signals can never get past compare_quotations."
   ]
 }

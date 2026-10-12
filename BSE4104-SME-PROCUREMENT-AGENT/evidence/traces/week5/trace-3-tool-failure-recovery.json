@@ -1,7 +1,7 @@
 {
   "trace_id": "W5-04-trace-3",
   "title": "Induced tool failure -> retry once -> safe hand-off -> recovery",
-  "generated_utc": "2026-10-12T17:24:33+00:00",
+  "generated_utc": "2026-10-12T17:37:34+00:00",
   "scenario": "check_reorder_levels is made unavailable with a mock outage (ConnectionError). Shown three ways: a persistent outage that exhausts the single retry, the tool coming back, and a transient outage that the retry survives.",
   "contract_codes": [
     "S2 (tool failed twice)"
@@ -10,11 +10,12 @@
     "item_id": "INV-003",
     "quantity_base": 460,
     "unit": "piece",
-    "preparing_officer_id": "officer-ashley"
+    "preparing_officer_id": "officer-ashley",
+    "as_of_date": "2026-08-27"
   },
   "environment": {
     "planner": "default_plan (deterministic rules; no model call, no API quota used)",
-    "clock": "compare_quotations pinned to as_of_date=2026-08-27",
+    "clock": "run_agent(as_of_date='2026-08-27'): quotation validity judged on that date (a person-set case input passed to the router by code, not a tool argument)",
     "writes": "requisition drafts, the loop's tool trace and all audit events written to a temporary folder only; lookup_policy retrieval logging switched off",
     "outage": "check_reorder_levels replaced by a mock that raises ConnectionError('Simulated outage: inventory service unreachable')"
   },
@@ -98,6 +99,7 @@
         },
         "quantity": 460,
         "unit": "piece",
+        "as_of_date": "2026-08-27",
         "policy_evidence": {},
         "comparison_result": null,
         "blocking_flags": [],
@@ -352,6 +354,7 @@
               "recommended_supplier_id": "SUP-03",
               "recommendation_basis": "lowest computed landed cost per base unit",
               "blocking_flags": [],
+              "informational_flags": [],
               "approval_level": "director",
               "minimum_valid_quotations_required": 3,
               "supplier_preference_hint": null
@@ -389,6 +392,7 @@
         },
         "quantity": 460,
         "unit": "piece",
+        "as_of_date": "2026-08-27",
         "policy_evidence": {
           "minimum number of quotations required": {
             "topic": "minimum number of quotations required",
@@ -489,6 +493,7 @@
           "recommended_supplier_id": "SUP-03",
           "recommendation_basis": "lowest computed landed cost per base unit",
           "blocking_flags": [],
+          "informational_flags": [],
           "approval_level": "director",
           "minimum_valid_quotations_required": 3,
           "supplier_preference_hint": null
@@ -619,7 +624,7 @@
               "item_id": "INV-003",
               "quantity_base": 460.0,
               "recommended_supplier_id": "SUP-03",
-              "audit_log_reference": "(temporary audit log, discarded after the run)#33398b28-ad6f-4281-809c-94fbd081aef0"
+              "audit_log_reference": "(temporary audit log, discarded after the run)#ad9203c0-dc3b-452e-b6c0-4ed7d0e2b8be"
             }
           },
           "counters_after_step": {
@@ -654,6 +659,7 @@
         },
         "quantity": 460,
         "unit": "piece",
+        "as_of_date": "2026-08-27",
         "policy_evidence": {
           "minimum number of quotations required": {
             "topic": "minimum number of quotations required",
@@ -754,6 +760,7 @@
           "recommended_supplier_id": "SUP-03",
           "recommendation_basis": "lowest computed landed cost per base unit",
           "blocking_flags": [],
+          "informational_flags": [],
           "approval_level": "director",
           "minimum_valid_quotations_required": 3,
           "supplier_preference_hint": null
@@ -762,7 +769,7 @@
         "confirmed_supplier": {
           "supplier_id": "SUP-03",
           "confirmed_by": "officer-ashley",
-          "confirmed_at": "2026-10-12T17:24:33.606835+00:00"
+          "confirmed_at": "2026-10-12T17:37:33.980839+00:00"
         },
         "draft_id": "REQ-2026-0003",
         "iteration_count": 1,
@@ -1098,6 +1105,7 @@
               "recommended_supplier_id": "SUP-03",
               "recommendation_basis": "lowest computed landed cost per base unit",
               "blocking_flags": [],
+              "informational_flags": [],
               "approval_level": "director",
               "minimum_valid_quotations_required": 3,
               "supplier_preference_hint": null
@@ -1135,6 +1143,7 @@
         },
         "quantity": 460,
         "unit": "piece",
+        "as_of_date": "2026-08-27",
         "policy_evidence": {
           "minimum number of quotations required": {
             "topic": "minimum number of quotations required",
@@ -1235,6 +1244,7 @@
           "recommended_supplier_id": "SUP-03",
           "recommendation_basis": "lowest computed landed cost per base unit",
           "blocking_flags": [],
+          "informational_flags": [],
           "approval_level": "director",
           "minimum_valid_quotations_required": 3,
           "supplier_preference_hint": null
@@ -1314,6 +1324,7 @@
   ],
   "persisted_audit_events_phase_b": [
     {
+      "as_of_date": "2026-08-27",
       "draft_id": null,
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",
@@ -1332,6 +1343,7 @@
       "supplier_confirmed_by": "officer-ashley"
     },
     {
+      "as_of_date": "2026-08-27",
       "draft_id": "REQ-2026-0003",
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",

@@ -124,7 +124,9 @@ class ProcurementToolTests(unittest.TestCase):
         self.assertEqual(result["minimum_valid_quotations_required"], 3)
         self.assertEqual(result["approval_level"], "director")
         self.assertTrue(any(flag.startswith("MINIMUM_VALID_QUOTATIONS_NOT_MET") for flag in result["blocking_flags"]))
-        self.assertIn("EXCLUDED_SUPPLIER:SUP-OUT:Q-EXCLUDED", result["blocking_flags"])
+        # Excluded: reported and not counted, but not a blocking flag by itself.
+        self.assertIn("EXCLUDED_SUPPLIER:SUP-OUT:Q-EXCLUDED", result["informational_flags"])
+        self.assertNotIn("EXCLUDED_SUPPLIER:SUP-OUT:Q-EXCLUDED", result["blocking_flags"])
         self.assertIn("EXPIRED_OR_INVALID_QUOTATION:Q-EXPIRED", result["blocking_flags"])
 
     def test_policy_check_passes_minimum_and_selects_operations_manager(self):

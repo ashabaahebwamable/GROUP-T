@@ -1,7 +1,7 @@
 {
   "trace_id": "W5-04-trace-1",
   "title": "Happy path, end to end: reorder signal -> H1 -> officer confirms -> resume -> requisition draft awaiting a human",
-  "generated_utc": "2026-10-12T17:24:32+00:00",
+  "generated_utc": "2026-10-12T17:37:33+00:00",
   "scenario": "A flagged item is checked, the policy rules are retrieved and quotations are compared by code. The agent stops at H1 for the officer to confirm the supplier, then resumes from the saved case state, creates a DRAFT and stops at H2. It never submits or approves.",
   "contract_codes": [
     "H1 (officer must confirm the supplier)",
@@ -11,11 +11,12 @@
     "item_id": "INV-003",
     "quantity_base": 460,
     "unit": "piece",
-    "preparing_officer_id": "officer-ashley"
+    "preparing_officer_id": "officer-ashley",
+    "as_of_date": "2026-08-27"
   },
   "environment": {
     "planner": "default_plan (deterministic rules; no model call, no API quota used)",
-    "clock": "compare_quotations pinned to as_of_date=2026-08-27",
+    "clock": "run_agent(as_of_date='2026-08-27'): quotation validity judged on that date (a person-set case input passed to the router by code, not a tool argument)",
     "writes": "requisition drafts, the loop's tool trace and all audit events written to a temporary folder only; lookup_policy retrieval logging switched off"
   },
   "phases": [
@@ -233,6 +234,7 @@
               "recommended_supplier_id": "SUP-03",
               "recommendation_basis": "lowest computed landed cost per base unit",
               "blocking_flags": [],
+              "informational_flags": [],
               "approval_level": "director",
               "minimum_valid_quotations_required": 3,
               "supplier_preference_hint": null
@@ -270,6 +272,7 @@
         },
         "quantity": 460,
         "unit": "piece",
+        "as_of_date": "2026-08-27",
         "policy_evidence": {
           "minimum number of quotations required": {
             "topic": "minimum number of quotations required",
@@ -370,6 +373,7 @@
           "recommended_supplier_id": "SUP-03",
           "recommendation_basis": "lowest computed landed cost per base unit",
           "blocking_flags": [],
+          "informational_flags": [],
           "approval_level": "director",
           "minimum_valid_quotations_required": 3,
           "supplier_preference_hint": null
@@ -492,7 +496,7 @@
               "item_id": "INV-003",
               "quantity_base": 460.0,
               "recommended_supplier_id": "SUP-03",
-              "audit_log_reference": "(temporary audit log, discarded after the run)#229552f0-ecc9-400e-bab5-1f997004b8c0"
+              "audit_log_reference": "(temporary audit log, discarded after the run)#9a52917e-f4d4-4d95-944b-3801ffa352b1"
             }
           },
           "counters_after_step": {
@@ -527,6 +531,7 @@
         },
         "quantity": 460,
         "unit": "piece",
+        "as_of_date": "2026-08-27",
         "policy_evidence": {
           "minimum number of quotations required": {
             "topic": "minimum number of quotations required",
@@ -627,6 +632,7 @@
           "recommended_supplier_id": "SUP-03",
           "recommendation_basis": "lowest computed landed cost per base unit",
           "blocking_flags": [],
+          "informational_flags": [],
           "approval_level": "director",
           "minimum_valid_quotations_required": 3,
           "supplier_preference_hint": null
@@ -635,7 +641,7 @@
         "confirmed_supplier": {
           "supplier_id": "SUP-03",
           "confirmed_by": "officer-ashley",
-          "confirmed_at": "2026-10-12T17:24:32.823356+00:00"
+          "confirmed_at": "2026-10-12T17:37:32.969950+00:00"
         },
         "draft_id": "REQ-2026-0003",
         "iteration_count": 1,
@@ -715,6 +721,7 @@
   ],
   "persisted_audit_events": [
     {
+      "as_of_date": "2026-08-27",
       "draft_id": null,
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",
@@ -733,6 +740,7 @@
       "supplier_confirmed_by": "officer-ashley"
     },
     {
+      "as_of_date": "2026-08-27",
       "draft_id": "REQ-2026-0003",
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": "INV-003",
@@ -745,6 +753,6 @@
   "observations": [
     "Goal reached up to H2 in 5 tool calls over two runs, each within the 6-call limit.",
     "Every stop was persisted: one AGENT_RUN_STOPPED audit event per run, and the draft's audit event records the confirming officer (persisted_audit_events).",
-    "WHY THIS ITEM AND DATE: INV-003 with the clock pinned to 2026-08-27 is the only flag-free case in the corpus. Searching every date from 2026-08-15 to 2026-10-13 for the four items that have quotations, no other combination reaches a draft. See Traces 1b and 1c and the README for why."
+    "WHY THIS ITEM AND DATE: INV-003 on 2026-08-27 was the only flag-free case in the corpus while EXCLUDED_SUPPLIER blocked. Since 12 Oct that flag is informational, and the reference cement case also reaches a draft (Trace 1b). On the real clock no case does, because the quotations have lapsed (Trace 1c)."
   ]
 }

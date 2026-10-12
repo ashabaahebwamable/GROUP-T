@@ -1,7 +1,7 @@
 {
   "trace_id": "W5-04-trace-2",
   "title": "Ambiguous item description -> hand-back to the officer",
-  "generated_utc": "2026-10-12T17:24:33+00:00",
+  "generated_utc": "2026-10-12T17:37:33+00:00",
   "scenario": "The officer asks to reorder 'Portland cement'. That matches more than one inventory item, so no item_id is resolved. The loop must ask which item is meant and select none itself.",
   "contract_codes": [
     "S5 (required input missing or ambiguous)"
@@ -13,11 +13,12 @@
       "INV-002"
     ],
     "item_id_passed_to_loop": null,
-    "quantity_base": 10000
+    "quantity_base": 10000,
+    "as_of_date": "2026-09-01"
   },
   "environment": {
     "planner": "default_plan (deterministic rules; no model call, no API quota used)",
-    "clock": "compare_quotations pinned to as_of_date=2026-09-01",
+    "clock": "run_agent(as_of_date='2026-09-01'): quotation validity judged on that date (a person-set case input passed to the router by code, not a tool argument)",
     "writes": "requisition drafts, the loop's tool trace and all audit events written to a temporary folder only; lookup_policy retrieval logging switched off",
     "note": "The description-to-candidates match above is done by this generator (simple substring match), not by run_agent. run_agent receives item_id=None, which is what an unresolved match looks like."
   },
@@ -53,6 +54,7 @@
     "item": null,
     "quantity": 10000,
     "unit": "kg",
+    "as_of_date": "2026-09-01",
     "policy_evidence": {},
     "comparison_result": null,
     "blocking_flags": [],
@@ -69,6 +71,7 @@
   },
   "persisted_audit_events": [
     {
+      "as_of_date": "2026-09-01",
       "draft_id": null,
       "event_type": "AGENT_RUN_STOPPED",
       "item_id": null,
