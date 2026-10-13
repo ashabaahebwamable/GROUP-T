@@ -1,0 +1,39 @@
+{
+  "purpose": "Recheck of the Week 3 evaluation questions whose retrieval changed after QUO-1011 to QUO-1027 were added to knowledge/records/quotations.csv on 2026-10-12 (11 of 15 questions retrieve identical chunks; these 4 differ only in lower-ranked quotation rows).",
+  "pipeline": "src.rag.answer.answer_query on Gemini, scored with scripts/run_week3_rag_eval.score_case",
+  "results": {
+    "B1": {
+      "run": "2026-10-12",
+      "verdict": "PASS",
+      "answer": "For a requisition with a total value of UGX 2,000,000, a minimum of three valid quotations must be obtained because the total value is UGX 1,000,000 or above. The available documents do not state which specific suppliers you should use.",
+      "citations": [
+        "knowledge\\policy\\procurement-policy.md"
+      ]
+    },
+    "B4": {
+      "run": "2026-10-13",
+      "question": "What must a valid quotation state, and what's a common mistake suppliers make when writing one?",
+      "verdict": "PASS",
+      "answer": "A valid quotation must state the item, the quantity, the unit of measure, the rate, and the treatment of value-added tax. The provided evidence does not contain information regarding common mistakes suppliers make when writing a quotation.",
+      "citations": [
+        "knowledge\\policy\\procurement-policy.md"
+      ]
+    },
+    "C1": {
+      "run": "2026-10-13",
+      "question": "What is the penalty for a supplier who submits a fraudulent quotation?",
+      "verdict": "PASS",
+      "answer": "cannot answer from available documents",
+      "citations": []
+    },
+    "C3": {
+      "run": "2026-10-13",
+      "question": "What is the company's registered VAT rate?",
+      "verdict": "PASS",
+      "answer": "cannot answer from available documents",
+      "citations": []
+    }
+  },
+  "conclusion": "All four questions still pass; the quotation additions did not change the Week 3 results.",
+  "api_errors": "Google returned 503 (high demand) on several attempts on 2026-10-12 and 2026-10-13 and a 429 (daily quota) on 2026-10-12; failed attempts were retried and are not counted as results."
+}

@@ -38,7 +38,7 @@ These are referenced for realism only. No text is copied into the corpus and no 
 
 - Documents: 1 policy + 6 quotation letters = **7 documents**
 - Records: 15 inventory rows + 6 supplier rows + 27 quotation rows + 1 requisition row = **49 structured records** (32 until the 12 Oct quotation additions)
-- Effect of the 12 Oct additions on the Week 3 evaluation, checked with retrieval only (no model call): 11 of 15 questions retrieve exactly the same chunks and scores. In B1, B4, C1 and C3 the policy chunks are unchanged and only the lower-ranked `quotations.csv` rows differ. Those four answers need a Gemini rerun to confirm the Week 3 results still hold, C3 (a required refusal) in particular.
+- Effect of the 12 Oct additions on the Week 3 evaluation, checked with retrieval only (no model call): 11 of 15 questions retrieve exactly the same chunks and scores. In B1, B4, C1 and C3 the policy chunks are unchanged and only the lower-ranked `quotations.csv` rows differ. Those four were rerun on Gemini on 12–13 Oct and all still pass, including C3 (a required refusal), so the additions did not change the Week 3 results (`evidence/traces/week3/week3-recheck-after-quotation-additions.json`).
 - Combined, the corpus is within the required range once records are counted as equivalent items, as the brief allows. Structured records (CSV) carry most of the volume; free-text documents (policy + letters) carry most of the retrieval/grounding complexity, which is what Week 3's RAG evaluation actually exercises.
 
 ## Outstanding
