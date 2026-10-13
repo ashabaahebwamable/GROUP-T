@@ -31,7 +31,7 @@ class SupplierPreferenceTests(unittest.TestCase):
                 "INV-001",
                 "SUP-01",
                 confirmed=False,
-                confirmer_id="officer-1",
+                confirmer_id="OFFICER-1",
                 database_path=self.database_path,
             )
 
@@ -42,7 +42,7 @@ class SupplierPreferenceTests(unittest.TestCase):
             "INV-001",
             "SUP-01",
             confirmed=True,
-            confirmer_id="officer-1",
+            confirmer_id="OFFICER-1",
             database_path=self.database_path,
         )
         hint = get_supplier_preference_hint(
@@ -50,7 +50,7 @@ class SupplierPreferenceTests(unittest.TestCase):
         )
 
         self.assertEqual(hint["supplier_id"], "SUP-01")
-        self.assertEqual(hint["confirmed_by"], "officer-1")
+        self.assertEqual(hint["confirmed_by"], "OFFICER-1")
         self.assertEqual(hint["confirmed_at"], recorded["confirmed_at"])
         self.assertTrue(hint["confirmed_at"])
         self.assertIn("not used in ranking", hint["message"])
@@ -60,7 +60,7 @@ class SupplierPreferenceTests(unittest.TestCase):
             "INV-001",
             "SUP-01",
             confirmed=True,
-            confirmer_id="officer-1",
+            confirmer_id="OFFICER-1",
             database_path=self.database_path,
         )
 
@@ -75,14 +75,14 @@ class SupplierPreferenceTests(unittest.TestCase):
             "INV-001",
             "SUP-01",
             confirmed=True,
-            confirmer_id="officer-1",
+            confirmer_id="OFFICER-1",
             database_path=self.database_path,
         )
         latest = record_supplier_preference(
             "INV-001",
             "SUP-02",
             confirmed=True,
-            confirmer_id="officer-2",
+            confirmer_id="MANAGER-1",
             database_path=self.database_path,
         )
 
@@ -90,7 +90,7 @@ class SupplierPreferenceTests(unittest.TestCase):
             "INV-001", database_path=self.database_path
         )
         self.assertEqual(hint["supplier_id"], "SUP-02")
-        self.assertEqual(hint["confirmed_by"], "officer-2")
+        self.assertEqual(hint["confirmed_by"], "MANAGER-1")
         self.assertEqual(hint["confirmed_at"], latest["confirmed_at"])
 
     def test_empty_confirmer_is_rejected_without_persisting(self):
@@ -170,6 +170,16 @@ class DataHandlingTests(unittest.TestCase):
 
         self.assertIsNotNone(get_supplier_preference_hint("INV-001", database_path=self.database_path))
         self.assertEqual(self._events()[-1]["event_type"], "PREFERENCE_DELETE_REFUSED")
+
+    def test_unregistered_confirmer_cannot_write_a_preference(self):
+        """W6-03 security review: write access limited to officer/approver roles."""
+        with self.assertRaises(PreferenceAccessDeniedError):
+            record_supplier_preference(
+                "INV-002", "SUP-02", confirmed=True, confirmer_id="someone",
+                database_path=self.database_path,
+            )
+
+        self.assertIsNone(get_supplier_preference_hint("INV-002", database_path=self.database_path))
 
     def test_only_officers_and_approvers_can_list_preferences(self):
         for reader in ("OFFICER-1", "MANAGER-1"):

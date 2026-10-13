@@ -83,8 +83,13 @@ def record_supplier_preference(
     confirmed: bool,
     confirmer_id: str,
     database_path: Path | str = DEFAULT_DATABASE_PATH,
+    users_path: Path | str | None = None,
 ) -> dict[str, str]:
-    """Persist a preference only when an identified human explicitly confirms."""
+    """Persist a preference only when an identified human explicitly confirms.
+
+    The confirmer must be a registered officer or approver (W6-03 security
+    review), so an unknown or made-up ID cannot be recorded as the confirmer.
+    """
     if confirmed is not True:
         raise PreferenceConfirmationRequiredError(
             "A supplier preference requires explicit human confirmation."
@@ -92,6 +97,10 @@ def record_supplier_preference(
     item_id = _required_text(item_id, "item_id")
     supplier_id = _required_text(supplier_id, "supplier_id")
     confirmer_id = _required_text(confirmer_id, "confirmer_id")
+    if role_of(confirmer_id, users_path=users_path) not in READER_ROLES:
+        raise PreferenceAccessDeniedError(
+            f"{confirmer_id!r} may not confirm supplier preferences; officer or approver role required."
+        )
     timestamp = datetime.now(timezone.utc).isoformat()
     path = Path(database_path)
     _initialize(path)
