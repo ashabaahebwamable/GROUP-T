@@ -99,8 +99,16 @@ TOOL_SCHEMAS = [
         "name": "compare_quotations",
         "description": (
             "Compare supplier quotations using deterministic landed cost per "
-            "inventory base unit. Any previous supplier preference is advisory "
-            "context only and must never override the computed ranking."
+            "inventory base unit and the procurement policy. The computed ranking "
+            "and recommended_supplier_id are authoritative; never alter or "
+            "recalculate them based on a supplier preference. If the result includes "
+            "supplier_preference_hint, surface it to the procurement officer as a "
+            "previously confirmed, informational preference, including its supplier "
+            "and confirmation details when available. Clearly distinguish this hint "
+            "from the computed recommendation. Do not treat the hint as proof that "
+            "a supplier is eligible, that quotation requirements are met, or that "
+            "approval has been granted. Leave supplier selection and approval to "
+            "the authorised human workflow."
         ),
         "parameters": {
             "type": "object",

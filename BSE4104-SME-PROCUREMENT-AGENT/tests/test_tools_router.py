@@ -204,5 +204,18 @@ class ToolRouterTests(unittest.TestCase):
         self.assertEqual(result["result"]["supplier_preference_hint"], hint)
 
 
+    def test_comparison_schema_explains_preference_is_advisory(self):
+        schema = next(
+            item
+            for item in get_tool_schemas()
+            if item["name"] == "compare_quotations"
+        )
+        description = schema["description"].lower()
+
+        self.assertIn("supplier_preference_hint", description)
+        self.assertIn("computed ranking", description)
+        self.assertIn("informational preference", description)
+        self.assertIn("human workflow", description)
+
 if __name__ == "__main__":
     unittest.main()
