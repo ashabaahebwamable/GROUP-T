@@ -52,6 +52,7 @@ The deterministic procurement function returns these principal fields:
 | `recommended_supplier_id` | Supplier at the top of the computed ranking, or `null` if none is recommended |
 | `recommendation_basis` | Explanation of the ranking basis |
 | `blocking_flags` | Policy or calculation issues that may block progress |
+| `informational_flags` | Issues reported to the officer that do not block the case by themselves, e.g. `EXCLUDED_SUPPLIER` (the quotation is already left out of the count and ranking) |
 | `approval_level` | Required approval level returned by the policy logic |
 | `minimum_valid_quotations_required` | Minimum number of valid quotations required by policy |
 
@@ -67,6 +68,8 @@ When present, the hint can contain:
 
 The hint may be absent or `null` when no stored preference exists. Consumers must not assume that a preference is available.
 
+**What the model receives.** `confirmed_by` and `confirmed_at` identify a person, so they stay inside the application: before a comparison result is returned to the model, the router reduces the hint to `item_id`, `supplier_id` and `message` (`model_safe_hint`; `docs/architecture/memory-design-note.md`, section 4). The officer still sees who confirmed the preference and when.
+
 ## 5. Preference handling
 
 The supplier preference is advisory context only.
@@ -74,7 +77,7 @@ The supplier preference is advisory context only.
 The model should:
 
 1. Surface a returned preference hint to the procurement officer when relevant.
-2. Identify it as a previously confirmed preference and preserve its confirmer and timestamp when available.
+2. Identify it as a previously confirmed preference. The confirmer and timestamp are not sent to the model; the application shows them to the officer.
 3. Clearly distinguish it from the supplier recommended by the computed quotation comparison.
 4. Never change, reorder or recalculate the deterministic ranking because of the preference.
 5. Never treat the preference as evidence that a supplier is eligible, that quotation minimums are satisfied, that blocking flags are cleared, or that approval has been granted.
