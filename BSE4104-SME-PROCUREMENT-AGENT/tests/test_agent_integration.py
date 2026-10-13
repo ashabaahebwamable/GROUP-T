@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -302,6 +303,24 @@ class ModelLoopControlTests(unittest.TestCase):
         self.assertEqual(result["stop_reason"], "SUPPLIER_NOT_CONFIRMED")
         self.assertEqual(result["contract_code"], "H1")
         self.assertEqual(mock_call_model.call_count, 1)
+
+    @patch("src.model_client.call_model_with_tools")
+    def test_preference_hint_reaches_the_model_without_officer_identity(self, mock_call_model):
+        """Memory design note: the confirmer's ID and time never go to the model."""
+        mock_call_model.side_effect = [
+            _call("compare_quotations", {"item_id": "INV-001", "quantity_base": 200}),
+            {"candidates": [{"content": {"parts": [{"text": "Done."}]}}]},
+        ]
+        hint = {"item_id": "INV-001", "supplier_id": "SUP-01", "confirmed_by": "OFFICER-1",
+                "confirmed_at": "2026-10-12T10:00:00+00:00", "message": "hint"}
+
+        with patch("src.agent.tools_router.get_supplier_preference_hint", return_value=hint):
+            run_bounded_tool_agent("Compare.")
+
+        sent = json.dumps(mock_call_model.call_args_list[1].kwargs["contents"])
+        self.assertIn("SUP-01", sent)
+        self.assertNotIn("OFFICER-1", sent)
+        self.assertNotIn("2026-10-12T10:00:00", sent)
 
     @patch("src.model_client.call_model_with_tools")
     def test_model_failure_is_a_safe_stop(self, mock_call_model):

@@ -62,3 +62,7 @@ On quotation comparison, the tool router attaches the most recent preference
 for that item as `supplier_preference_hint` for the officer-facing agent
 context. The deterministic comparison function does not read memory, and the
 hint is never used to alter eligibility, costs or ranking.
+
+Retention (12 months), deletion (approver only, audited), read access (officer and
+approver roles) and what is sent to the model are set out in
+`docs/architecture/memory-design-note.md`.

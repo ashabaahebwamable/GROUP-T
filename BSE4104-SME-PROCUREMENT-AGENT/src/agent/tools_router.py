@@ -15,7 +15,7 @@ from src.tools.procurement import (
     compare_quotations,
     create_requisition_draft,
 )
-from src.memory import get_supplier_preference_hint
+from src.memory import get_supplier_preference_hint, model_safe_hint
 from src.agent.stop_codes import RETRYABLE_TOOL_ERRORS, contract_code
 
 
@@ -759,6 +759,15 @@ def _run_tool_loop(
             # correct the call.
             if tool_result.get("ok"):
                 response_payload = tool_result.get("result")
+                if isinstance(response_payload, dict) and "supplier_preference_hint" in response_payload:
+                    # The officer's ID and time stay on the machine
+                    # (memory design note): the model sees the supplier only.
+                    response_payload = {
+                        **response_payload,
+                        "supplier_preference_hint": model_safe_hint(
+                            response_payload["supplier_preference_hint"]
+                        ),
+                    }
             else:
                 response_payload = {
                     "error": tool_result.get("error"),
