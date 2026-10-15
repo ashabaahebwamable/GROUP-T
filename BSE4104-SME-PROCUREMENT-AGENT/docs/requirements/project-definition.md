@@ -57,7 +57,7 @@ Reorder signal to approved requisition, **one stock item per case**.
 | 7 | Approver approves, rejects or queries | Human |
 | 8 | Decision recorded with full evidence trail; case state persisted | Deterministic |
 
-Bounded agency: fixed maximum of **[PLACEHOLDER: proposed 6]** tool-call iterations, allow-listed tools only, hand-off with partial state preserved on any stop condition.
+Bounded agency: fixed maximum of **6** tool-call iterations per run (at most one retry per failed call, counted within the 6), allow-listed tools only, hand-off with partial state preserved on any stop condition.
 
 ## 9. Why AI adds value
 

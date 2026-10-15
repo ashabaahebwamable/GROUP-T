@@ -84,7 +84,7 @@ One end-to-end workflow: **reorder signal to approved requisition, for a single 
 | 7. Approval decision | Requisition approved, rejected or queried | Human |
 | 8. Outcome | Approved requisition retained with its evidence trail; case state persisted | Deterministic |
 
-**Bounded agency.** The agent operates within a fixed maximum of **[PLACEHOLDER: proposed 6]** tool-call iterations, may invoke only allow-listed tools, and hands off to the human with partial state intact when a limit is reached, a required input is unavailable, or a tool fails repeatedly.
+**Bounded agency.** The agent operates within a fixed maximum of **6** tool-call iterations per run (at most one retry per failed call, counted within the 6), may invoke only allow-listed tools, and hands off to the human with partial state intact when a limit is reached, a required input is unavailable, or a tool fails repeatedly.
 
 ## 8. Project scope
 
