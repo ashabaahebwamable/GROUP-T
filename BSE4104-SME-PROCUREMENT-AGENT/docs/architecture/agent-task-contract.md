@@ -3,7 +3,7 @@
 **Project:** BSE4104 SME Procurement Preparation Agent (ReqPrep)
 **Week:** 5 — Bounded Agent Loop
 **Owners:** Ashaba Ahebwa Mable (sections 1, 2, 5, 6, 7) · Tendo Caisey (sections 3, 4, 8)
-**Status:** Draft, all sections written. Mable's sections were checked against the Week 5 code on 12 Oct 2026. Sections 3, 4 and 8 were drafted from the code on 12 Oct 2026 because Tendo's text was not in the repository; Tendo to review and either accept or replace them. Items needing agreement from both are listed in section 9.
+**Status:** Draft, all sections written. Mable's sections were checked against the Week 5 code on 12 Oct 2026. Sections 3, 4 and 8 were drafted from the code on 12 Oct 2026 because Tendo's text was not in the repository; Tendo reviewed them against the code on 16 Oct 2026 and accepted them, with two wording changes (the section 3 introduction and the section 4 `reorder_result` row). Items needing agreement from both are listed in section 9.
 
 This contract is what the Week 5 agent loop is built and tested against. "Implement the bounded agent loop" codes it, "Stop-condition and allow-list tests" test it, and the three execution traces demonstrate it. Where this contract and the code disagree, the code is wrong until the contract is changed by agreement.
 
@@ -53,9 +53,9 @@ The agent does not reach that state by itself. Two steps belong to the officer (
 
 The charter and project definition still say "[PLACEHOLDER: proposed 6]", and there is no Week 2 sign-off for it in the repository. Once Tendo agrees, this section is the sign-off, and both placeholders are replaced with 6.
 
-## 3. Approved tools (Tendo, drafted from the code for review)
+## 3. Approved tools (Tendo; reviewed 16 Oct 2026)
 
-The allow-list is the four tools in `TOOL_REGISTRY` (`src/agent/tools_router.py`). Their input and output contracts are in `tool-catalogue.md`. This section adds when the loop may call each one. All four are deterministic: the model only chooses when to call them and with which arguments, and the router validates both the arguments and the output.
+The allow-list is the four tools in `TOOL_REGISTRY` (`src/agent/tools_router.py`). Their input and output contracts are in `tool-catalogue.md`. This section adds when the loop may call each one. All four are deterministic. In `run_agent` the rule-based planner (`default_plan`) chooses the next call; in `run_bounded_tool_agent` the model proposes it. In both loops the router validates the arguments and the output.
 
 | Order | Tool | The planner may call it when | It adds to the case state | Side effects |
 |---|---|---|---|---|
@@ -68,7 +68,7 @@ Preconditions the router enforces for the draft, whatever the planner asks for: 
 
 Not tools: `confirm_supplier` (officer, step 4), `record_supplier_preference` (officer, memory), and every state-machine transition (`submit_for_approval`, `approve`, `reject`, `query`, `halt`). Any other tool name is blocked with `TOOL_NOT_ALLOWED` (stop S3).
 
-## 4. State fields (Tendo, drafted from the code for review)
+## 4. State fields (Tendo; reviewed 16 Oct 2026)
 
 The case state is the dictionary built by `initial_case_state()` in `src/agent/loop.py`. Every stop returns it unchanged, and `run_agent(state=...)` accepts it back to resume. The model sets none of these fields directly: a model planner can only propose a tool call or a hand-off.
 
@@ -79,7 +79,7 @@ The case state is the dictionary built by `initial_case_state()` in `src/agent/l
 | `quantity`, `unit` | Requested quantity in base units, and its unit | Person (case input, or when resuming after `QUANTITY_CONFIRMATION_REQUIRED`) |
 | `preparing_officer_id` | The officer preparing the requisition | Person (case input) |
 | `as_of_date` | Date quotation validity is judged on; `None` means today. Kept across a resume and passed by code to the comparison and the draft pre-check, never a tool argument | Person (case input; evaluations and demos) |
-| `reorder_result` | Output of `check_reorder_levels` | Code (tool result) |
+| `reorder_result` | Output of `check_reorder_levels`; added when that tool returns, not in the initial state | Code (tool result) |
 | `policy_evidence` | One `lookup_policy` result per topic: status, section, rule text, source | Code (tool result) |
 | `comparison_result` | Output of `compare_quotations`, including the recommended supplier and any preference hint | Code (tool result) |
 | `blocking_flags` | Blocking flags from the comparison, without duplicates | Code (tool result) |
@@ -171,7 +171,7 @@ Restated from the brief and the AI boundary matrix. "Status" records whether the
 | Using a model-produced figure | 4, Principle 1 | Figures come only from deterministic tools; the router refuses a supplier that differs from the computed one. | Holds for the supplier; full numeral check planned for Week 8 |
 | Calling a tool outside the allow-list | 9 | Router allow-list (ALLOW); the run then stops (S3). | **Holds in both loops**: the call is blocked before execution and the run stops without retry (tests) |
 
-## 8. Enforcement mapping (Tendo, drafted from the code for review)
+## 8. Enforcement mapping (Tendo; reviewed 16 Oct 2026)
 
 Where each stop condition and prohibited action is enforced, and the test that shows it. Paths are under `src/` and `tests/`.
 
