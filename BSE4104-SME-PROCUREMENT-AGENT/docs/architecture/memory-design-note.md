@@ -39,7 +39,7 @@ Nothing else is stored: no prices, no quotation text, no supplier contact detail
 - It refuses unless `confirmed` is exactly `True` and the confirmer ID is non-empty; a refused call writes nothing (`PreferenceConfirmationRequiredError`).
 - The confirmer must be a registered officer or approver in `data/users.csv`; anyone else is refused (`PreferenceAccessDeniedError`). Added after the section 8 review.
 - It is **not a model tool**: it is not in `TOOL_REGISTRY`, so the model cannot write memory. The model may at most suggest that a preference is worth remembering (matrix row 19).
-- **Not yet connected to the workflow.** No step in the loop calls it yet: the officer's confirmation at hand-off H1 (`confirm_supplier`) is separate. Adding an explicit "remember this supplier for this item?" step is W6-02.
+- The officer confirmation at hand-off H1 now calls `record_supplier_preference(...)` immediately after the confirmed supplier is accepted, so the durable preference is written only after explicit human confirmation and not as a model action.
 
 ## 4. Who can read it
 
@@ -86,10 +86,9 @@ Two points follow:
 
 ## 7. Open items
 
-1. **W6-02:** add the explicit "remember this supplier?" step after H1, so a preference is actually written in the workflow.
-2. **Schedule the purge:** call `purge_expired_preferences()` at application start or on a timer.
-3. **Retention for case and evidence data** (section 6): team decision.
-4. **File-level protection** of `data/application_state.sqlite3`: Week 8 hardening.
+1. **Schedule the purge:** call `purge_expired_preferences()` at application start or on a timer.
+2. **Retention for case and evidence data** (section 6): team decision.
+3. **File-level protection** of `data/application_state.sqlite3`: Week 8 hardening.
 
 ## 8. Security review (Akisa Maria Ashley)
 

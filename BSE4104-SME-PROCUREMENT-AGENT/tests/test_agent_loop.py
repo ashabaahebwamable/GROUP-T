@@ -46,6 +46,31 @@ class BoundedAgentLoopTests(unittest.TestCase):
             "READY_FOR_HUMAN_APPROVAL",
         )
 
+    @patch("src.agent.loop.record_supplier_preference")
+    def test_confirm_supplier_records_the_preference_after_human_confirmation(
+        self,
+        mock_record_preference,
+    ):
+        state = {
+            "item": {"item_id": "INV-001"},
+            "comparison_result": {"recommended_supplier_id": "SUP-01"},
+            "blocking_flags": [],
+        }
+
+        confirmed = confirm_supplier(
+            state,
+            supplier_id="SUP-01",
+            officer_id="OFFICER-1",
+        )
+
+        mock_record_preference.assert_called_once_with(
+            "INV-001",
+            "SUP-01",
+            confirmed=True,
+            confirmer_id="OFFICER-1",
+        )
+        self.assertEqual(confirmed["confirmed_supplier"]["supplier_id"], "SUP-01")
+
     @patch("src.agent.loop.dispatch_tool")
     def test_plan_and_observe_advance_case_through_tool_results(
         self,

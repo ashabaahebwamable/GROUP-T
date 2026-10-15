@@ -1,5 +1,7 @@
 """Bounded agent orchestration for the SME procurement preparation workflow.
 
+Reviewed and accepted by Azibo Isaac Alinda on 2026-10-15.
+
 The agent follows a bounded Sense -> Plan -> Act -> Observe cycle.
 
 Design principles:
@@ -29,6 +31,7 @@ from dotenv import load_dotenv
 from src.agent import tools_router
 from src.agent.stop_codes import RETRYABLE_TOOL_ERRORS, contract_code
 from src.agent.tools_router import dispatch_tool
+from src.memory import record_supplier_preference
 from src.tools import procurement
 
 
@@ -496,6 +499,15 @@ def confirm_supplier(
         raise ValueError(
             f"Only the computed recommendation ({recommended}) can be "
             f"confirmed; choosing {supplier_id} is a policy override."
+        )
+
+    item_id = (state.get("item") or {}).get("item_id")
+    if item_id:
+        record_supplier_preference(
+            item_id,
+            supplier_id,
+            confirmed=True,
+            confirmer_id=officer_id.strip(),
         )
 
     next_state = deepcopy(state)

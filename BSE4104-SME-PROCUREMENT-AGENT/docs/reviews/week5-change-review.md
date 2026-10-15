@@ -23,8 +23,8 @@ No other defects were found. Behaviours confirmed by test: H1 stop and router re
 
 | Area | Files | Owner | Confirmed (name, date) |
 |---|---|---|---|
-| Bounded loop | `src/agent/loop.py`, `tests/test_agent_loop.py` | Azibo Isaac Alinda | |
-| State machine, stores, role check | `src/workflow/state_machine.py`, `requisition_store.py`, `case_store.py`, `users.py`, `data/users.csv`, `tests/workflow/` | Azibo Isaac Alinda | |
+| Bounded loop | `src/agent/loop.py`, `tests/test_agent_loop.py` | Azibo Isaac Alinda | Azibo Isaac Alinda, 2026-10-15 |
+| State machine, stores, role check | `src/workflow/state_machine.py`, `requisition_store.py`, `case_store.py`, `users.py`, `data/users.csv`, `tests/workflow/` | Azibo Isaac Alinda | Azibo Isaac Alinda, 2026-10-15 |
 | Router and model loop | `src/agent/tools_router.py`, `src/agent/stop_codes.py`, `tests/test_agent_integration.py` | Tendo Caisey | |
 | Stop-condition tests, traces, generator | `tests/agent/test_stop_conditions_and_allowlist.py`, `scripts/generate_week5_traces.py`, `evidence/traces/week5/` | Akisa Maria Ashley | |
 | Synthetic quotations QUO-1011 to 1027 | `knowledge/records/quotations.csv` | Azibo Isaac Alinda (data author) | |

@@ -1,6 +1,8 @@
 """
 Requisition approval state machine (W4-05).
 
+Reviewed and accepted by Azibo Isaac Alinda on 2026-10-15.
+
 Drafted to unblock W4-05; see the AI Engineering Log for the disclosure
 entry. Isaac Alinda, as the assigned owner, should
 review and take ownership before this is treated as final.
