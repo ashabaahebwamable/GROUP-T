@@ -15,8 +15,9 @@ Run from the project root:
 Safe to run repeatedly:
   * The default planner is deterministic, so no model is called and no Gemini quota
     is used. lookup_policy runs the real Week 3 retriever (local embedding model).
-  * Requisition drafts, the loop's tool trace and every audit event (drafts and
-    AGENT_RUN_STOPPED) are written to a temporary folder, never to
+  * Requisition drafts, supplier preferences, the loop's tool trace and every
+    audit event (drafts and AGENT_RUN_STOPPED) are written to a temporary folder,
+    never to data/application_state.sqlite3,
     data/requisitions.csv, evidence/traces/tool-calls.jsonl or audit-log.jsonl.
     lookup_policy's retrieval log is switched off for the same reason.
   * The only files written are the trace files in evidence/traces/week5/.
@@ -54,6 +55,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.agent import loop, tools_router  # noqa: E402
+from src.memory import supplier_preferences  # noqa: E402
 from src.tools import procurement  # noqa: E402
 from src.tools.policy import lookup_policy  # noqa: E402
 
@@ -101,6 +103,14 @@ class Isolated:
             patch.object(tools_router, "TOOL_TRACE_PATH", tmp / "tool-calls.jsonl")
         )
         self.stack.enter_context(patch.object(procurement, "AUDIT_LOG_PATH", audit))
+
+        # confirm_supplier() saves a supplier preference; the defaults are bound
+        # at definition, so wrap the names the loop and router call.
+        preferences = tmp / "application_state.sqlite3"
+        self.stack.enter_context(patch.object(loop, "record_supplier_preference", functools.partial(
+            supplier_preferences.record_supplier_preference, database_path=preferences)))
+        self.stack.enter_context(patch.object(tools_router, "get_supplier_preference_hint", functools.partial(
+            supplier_preferences.get_supplier_preference_hint, database_path=preferences)))
 
         registry: dict[str, Any] = {
             "create_requisition_draft": functools.partial(

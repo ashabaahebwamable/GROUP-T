@@ -5,8 +5,8 @@ recommended supplier, run 2 resumes from the saved case state to a DRAFT and
 hand-off H2, and an approver submits nothing: the demo stops where the agent's
 job ends. No model is called (rule-based planner).
 
-By default every write (draft, tool trace, audit log, retrieval log) goes to a
-temporary folder that is deleted afterwards, so the demo can be repeated before
+By default every write (draft, tool trace, audit log, retrieval log, supplier
+preference) goes to a temporary folder that is deleted afterwards, so the demo can be repeated before
 the final presentation without changing the repository. Pass --persist to
 write to the real data and evidence files instead.
 
@@ -26,6 +26,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from src.agent import loop, tools_router
+from src.memory import supplier_preferences
 from src.tools import procurement
 from src.tools.policy import lookup_policy
 
@@ -73,6 +74,13 @@ def main(persist: bool) -> None:
                 ),
                 "lookup_policy": functools.partial(lookup_policy, trace_path=None),
             }))
+            # confirm_supplier() saves a supplier preference; keep it, and the
+            # hint read back by the router, in the temporary folder too.
+            preferences = tmp / "application_state.sqlite3"
+            stack.enter_context(patch.object(loop, "record_supplier_preference", functools.partial(
+                supplier_preferences.record_supplier_preference, database_path=preferences)))
+            stack.enter_context(patch.object(tools_router, "get_supplier_preference_hint", functools.partial(
+                supplier_preferences.get_supplier_preference_hint, database_path=preferences)))
             print("Writes go to a temporary folder (pass --persist to keep them).")
 
         run_1 = loop.run_agent(**CASE)
