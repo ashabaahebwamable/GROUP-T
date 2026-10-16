@@ -102,7 +102,24 @@ Two points follow:
 
 Stand-in reviewer: Ashaba Ahebwa Mable, 13 Oct 2026
 
-Confirmation by Akisa Maria Ashley, 13 Oct 2026, with AI assistance (AI Engineering Log, entry 10).
+**Confirmation by Akisa Maria Ashley, 13 Oct 2026, with AI assistance (AI Engineering Log, entry 11).** I re-ran the three checks above independently on commit `dcca6a4`, and re-ran the tests and the router control on `54b6593`. Each result was reproduced:
+
+| Check | What I re-ran | Result |
+|---|---|---|
+| No personal data beyond what US-12 requires | Read the schema and every code path that reads or writes a preference; confirmed the router removes the officer's ID and time before the model sees the hint; scanned tracked files for email addresses and phone numbers (none; three digit-pattern hits were retrieval scores) | Confirmed. The two real-name account IDs are as described |
+| No secrets in stored data or evidence | Scanned all 89 commits on every branch for key patterns and for the prefix of the team keys; checked that no `.env` or database file was ever committed; checked `.gitignore`; looked at the three Week 5 screenshots | Confirmed. No key, token or password anywhere |
+| Preference access limited to officer and approver roles | Made 20 attempts with bad input against a temporary database (unregistered and wrong-case IDs, a truthy value that is not `True`, SQL text, log-forging text); broke six controls on purpose and checked the tests failed each time | Confirmed. Every attempt was refused or harmless, and every deliberate break was caught |
+
+Scope: this confirms the memory functions and the data path to the model as the code stands. The write, list, delete and purge functions are not yet called from the officer's workflow, so they are verified at function level only.
+
+Additional findings:
+
+1. **Identity is asserted, not authenticated (accepted limitation).** The application takes the user ID from the caller and only looks up its role. Anyone who supplies a registered approver's ID is treated as that approver, because there is no login. This applies to approvals as well as to memory. It should be stated in sections 4 and 8 and kept on the Week 8 hardening list.
+2. **Logged text has no size limit (low).** A refused delete by an unregistered ID with a 200,000-character reason added 200 KB to the audit log, and the free-text reason is not listed in section 6. Recommend capping the length of the actor ID and the reason.
+3. **Screenshots (low).** They show no secrets, but the taskbar shows messaging-app notification counts and one screenshot shows an account's initials. Crop them next time.
+
+Reviewer: Akisa Maria Ashley, 13 Oct 2026
+
 
 ## 9. Tests
 
