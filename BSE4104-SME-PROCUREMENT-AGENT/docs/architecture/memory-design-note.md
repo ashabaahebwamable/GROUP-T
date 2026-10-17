@@ -111,6 +111,7 @@ Stand-in reviewer: Ashaba Ahebwa Mable, 13 Oct 2026
 | Preference access limited to officer and approver roles | Made 20 attempts with bad input against a temporary database (unregistered and wrong-case IDs, a truthy value that is not `True`, SQL text, log-forging text); broke six controls on purpose and checked the tests failed each time | Confirmed. Every attempt was refused or harmless, and every deliberate break was caught |
 
 Scope: this confirms the memory functions and the data path to the model as the code stood on `dcca6a4`. Since then (commit `f12dc82`, 15 Oct) `confirm_supplier` in `src/agent/loop.py` calls the write function once an officer confirms the recommended supplier; that path is now covered by the W6-05 tests in `tests/memory/test_memory_controls.py`. The list, delete and purge functions are still not called from the officer's workflow, so they remain verified at function level only.
+
 Additional findings:
 
 1. **Identity is asserted, not authenticated (accepted limitation).** The application takes the user ID from the caller and only looks up its role. Anyone who supplies a registered approver's ID is treated as that approver, because there is no login. This applies to approvals as well as to memory. It should be stated in sections 4 and 8 and kept on the Week 8 hardening list.
