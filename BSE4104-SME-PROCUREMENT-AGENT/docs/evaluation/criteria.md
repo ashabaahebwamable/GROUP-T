@@ -112,7 +112,7 @@ The thresholds above are agreed before the first run.
 
 | Owner | Agreed (name, date) | Comments |
 |---|---|---|
-| Ashaba Ahebwa Mable | | |
+| Ashaba Ahebwa Mable | Ashaba Ahebwa Mable, 2026-10-19 | Agreed as proposed |
 | Tendo Caisey | | |
 
 ## 7. Changes after agreement
