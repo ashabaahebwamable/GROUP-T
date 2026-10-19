@@ -26,7 +26,7 @@ The tool accepts the following JSON object:
 | `item_id` | string | Yes | Inventory item identifier |
 | `quantity_base` | number | Yes | Requested quantity expressed in the item's inventory base unit |
 
-Additional properties are not allowed by the declared tool schema.
+The declared schema lists only these two properties and does not set `additionalProperties`; the router rejects any other argument with `TOOL_ARGUMENT_ERROR` (`_validate_arguments` in `src/agent/tools_router.py`).
 
 Example:
 
@@ -129,7 +129,7 @@ Tool-router errors and traces remain part of the application boundary; a model-g
 
 The interface is consistent with the intended design when:
 
-- the declared input schema requires `item_id` and `quantity_base`;
+- the declared input schema requires `item_id` and `quantity_base`, and the router rejects any other argument;
 - the router allows only registered tools and validates tool arguments;
 - the comparison result retains the deterministic recommendation when a different supplier is present in the preference hint;
 - the model-facing description directs the model to surface the hint as informational context;
