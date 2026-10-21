@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Callable
 import uuid
 
@@ -32,6 +33,7 @@ from src.agent import tools_router
 from src.agent.stop_codes import RETRYABLE_TOOL_ERRORS, contract_code
 from src.agent.tools_router import dispatch_tool
 from src.memory import record_supplier_preference
+from src.observability import DEFAULT_TRACE_PATH, write_trace
 from src.tools import procurement
 
 
@@ -658,7 +660,7 @@ def run_agent_step(
 # Bounded orchestration loop
 # ---------------------------------------------------------------------------
 
-def run_agent(
+def _run_agent_impl(
     *,
     item_id: str | None = None,
     item_description: str | None = None,
@@ -695,7 +697,9 @@ def run_agent(
 
     Every run appends its tool calls and its stop to ``trace_path`` (default
     ``evidence/traces/tool-calls.jsonl``) and its stop to ``audit_log_path``
-    (default ``evidence/traces/audit-log.jsonl``).
+    (default ``evidence/traces/audit-log.jsonl``). A structured per-request
+    trace is also written to ``observability_path`` or the default observability
+    JSONL log.
 
     No purchase, supplier contact, payment, or approval is performed.
     """
@@ -769,6 +773,132 @@ def run_agent(
         audit_log_path=Path(audit_log_path) if audit_log_path is not None
         else procurement.AUDIT_LOG_PATH,
     )
+    return result
+
+
+def run_agent(
+    *,
+    item_id: str | None = None,
+    item_description: str | None = None,
+    quantity_base: float | int | None = None,
+    unit: str | None = None,
+    preparing_officer_id: str | None = None,
+    as_of_date: str | None = None,
+    state: dict[str, Any] | None = None,
+    planner: Planner = default_plan,
+    max_steps: int | None = None,
+    max_tool_retries: int | None = None,
+    trace_path: Path | str | None = None,
+    audit_log_path: Path | str | None = None,
+    observability_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """Run and persist a structured observability record for one agent request."""
+    started = perf_counter()
+    request_id = str(uuid.uuid4())
+    request = {
+        "item_id": item_id,
+        "item_description": item_description,
+        "quantity_base": quantity_base,
+        "unit": unit,
+        "preparing_officer_id": preparing_officer_id,
+        "as_of_date": as_of_date,
+        "state": deepcopy(state),
+    }
+    path = observability_path or DEFAULT_TRACE_PATH
+
+    try:
+        result = _run_agent_impl(
+            item_id=item_id,
+            item_description=item_description,
+            quantity_base=quantity_base,
+            unit=unit,
+            preparing_officer_id=preparing_officer_id,
+            as_of_date=as_of_date,
+            state=state,
+            planner=planner,
+            max_steps=max_steps,
+            max_tool_retries=max_tool_retries,
+            trace_path=trace_path,
+            audit_log_path=audit_log_path,
+        )
+    except Exception as exc:
+        write_trace({
+            "trace_id": request_id,
+            "run_id": request_id,
+            "operation": "agent.run_agent",
+            "request": request,
+            "model": {
+                "provider": "none",
+                "name": None,
+                "planner": getattr(planner, "__qualname__", type(planner).__qualname__),
+            },
+            "prompt_version": None,
+            "retrieved_chunks": [],
+            "tool_calls": [],
+            "latency_ms": round((perf_counter() - started) * 1000, 3),
+            "errors": [{"type": type(exc).__name__, "message": str(exc)}],
+            "final_outcome": "error",
+            "final_output": None,
+        }, path)
+        raise
+
+    tool_calls = []
+    retrieved_chunks = []
+    errors = []
+    for step in result.get("trace", []):
+        tool_result = step.get("tool_result")
+        if tool_result is None:
+            continue
+        call = {
+            "tool_name": (step.get("plan") or {}).get("tool_name"),
+            "arguments": deepcopy((step.get("plan") or {}).get("arguments") or {}),
+            "status": "success" if tool_result.get("ok") else "error",
+            "result": deepcopy(tool_result.get("result")),
+            "error": tool_result.get("error"),
+            "message": tool_result.get("message"),
+        }
+        tool_calls.append(call)
+        if not tool_result.get("ok"):
+            errors.append({
+                "type": str(tool_result.get("error") or "TOOL_FAILURE"),
+                "message": str(tool_result.get("message") or ""),
+            })
+        if call["tool_name"] == "lookup_policy" and tool_result.get("ok"):
+            policy = tool_result.get("result") or {}
+            if policy.get("status") == "found":
+                retrieved_chunks.append({
+                    "source_id": policy.get("source"),
+                    "score": policy.get("score"),
+                    "content": policy.get("rule"),
+                    "section": policy.get("policy_section"),
+                })
+
+    trace_id = result.get("run_id", request_id)
+    write_trace({
+        "trace_id": trace_id,
+        "run_id": trace_id,
+        "operation": "agent.run_agent",
+        "request": request,
+        "model": {
+            "provider": "none",
+            "name": None,
+            "planner": getattr(planner, "__qualname__", type(planner).__qualname__),
+        },
+        "prompt_version": None,
+        "retrieved_chunks": retrieved_chunks,
+        "tool_calls": tool_calls,
+        "latency_ms": round((perf_counter() - started) * 1000, 3),
+        "errors": errors,
+        "final_outcome": {
+            "status": result.get("status"),
+            "reason": result.get("reason"),
+            "contract_code": result.get("contract_code"),
+        },
+        "final_output": {
+            "message": result.get("message"),
+            "draft_id": (result.get("state") or {}).get("draft_id"),
+        },
+    }, path)
     return result
 
 

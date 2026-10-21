@@ -1,0 +1,35 @@
+{
+  "errors": [],
+  "final_outcome": {
+    "contract_code": "S5",
+    "reason": "AMBIGUOUS_ITEM",
+    "status": "handoff"
+  },
+  "final_output": {
+    "draft_id": null,
+    "message": "Which inventory item do you mean? 'Portland cement' matches 2 items: INV-001 (Portland cement 32.5N); INV-002 (Portland cement 42.5N). No item has been selected; please choose one."
+  },
+  "latency_ms": 11.564,
+  "model": {
+    "name": null,
+    "planner": "default_plan",
+    "provider": "none"
+  },
+  "operation": "agent.run_agent",
+  "prompt_version": null,
+  "request": {
+    "as_of_date": null,
+    "item_description": "Portland cement",
+    "item_id": null,
+    "preparing_officer_id": null,
+    "quantity_base": null,
+    "state": null,
+    "unit": null
+  },
+  "retrieved_chunks": [],
+  "run_id": "3c136581-508e-47dc-8caf-299f24ff00ba",
+  "schema_version": "1.0",
+  "timestamp": "2026-10-21T04:34:46.072771+00:00",
+  "tool_calls": [],
+  "trace_id": "3c136581-508e-47dc-8caf-299f24ff00ba"
+}

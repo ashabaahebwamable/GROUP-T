@@ -6,8 +6,11 @@ import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
+from src.model_client import MODEL_NAME
+from src.observability import DEFAULT_TRACE_PATH, write_trace
 from src.tools.policy import lookup_policy
 from src.tools.procurement import (
     PROJECT_ROOT,
@@ -846,6 +849,8 @@ def run_bounded_tool_agent(
     model_name: str | None = None,
     api_key: str | None = None,
     trace_path: Path | str | None = None,
+    prompt_version: str | None = None,
+    observability_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """
     Run the bounded tool loop, then persist its trace.
@@ -855,14 +860,37 @@ def run_bounded_tool_agent(
     when the run stopped, and every model-vs-computed check the router ran is
     returned as ``model_checks``.
     """
-    result = _run_tool_loop(
-        prompt,
-        max_tool_rounds=max_tool_rounds,
-        max_tool_calls=max_tool_calls,
-        max_tool_retries=max_tool_retries,
-        model_name=model_name,
-        api_key=api_key,
-    )
+    started = perf_counter()
+    request_id = str(uuid.uuid4())
+    trace_output_path = observability_path or DEFAULT_TRACE_PATH
+    try:
+        result = _run_tool_loop(
+            prompt,
+            max_tool_rounds=max_tool_rounds,
+            max_tool_calls=max_tool_calls,
+            max_tool_retries=max_tool_retries,
+            model_name=model_name,
+            api_key=api_key,
+        )
+    except Exception as exc:
+        write_trace({
+            "trace_id": request_id,
+            "run_id": request_id,
+            "operation": "agent.run_bounded_tool_agent",
+            "request": {"prompt": prompt},
+            "model": {
+                "provider": "google",
+                "name": model_name or MODEL_NAME,
+            },
+            "prompt_version": prompt_version,
+            "retrieved_chunks": [],
+            "tool_calls": [],
+            "latency_ms": round((perf_counter() - started) * 1000, 3),
+            "errors": [{"type": type(exc).__name__, "message": str(exc)}],
+            "final_outcome": "error",
+            "final_output": None,
+        }, trace_output_path)
+        raise
 
     run_id = str(uuid.uuid4())
     trace = result.get("trace", [])
@@ -887,6 +915,59 @@ def run_bounded_tool_agent(
     result["model_checks"] = [
         check for event in trace for check in event.get("checks", [])
     ]
+    errors = [
+        {"type": str(event.get("error")), "message": str(event.get("error"))}
+        for event in trace
+        if event.get("status") != "success" and event.get("error")
+    ]
+    if result.get("error"):
+        errors.append({
+            "type": str(result["error"]),
+            "message": str(result.get("message") or ""),
+        })
+    retrieved_chunks = [
+        {
+            "source_id": (event.get("result") or {}).get("source"),
+            "score": (event.get("result") or {}).get("score"),
+            "content": (event.get("result") or {}).get("rule"),
+            "section": (event.get("result") or {}).get("policy_section"),
+        }
+        for event in trace
+        if event.get("tool_name") == "lookup_policy"
+        and isinstance(event.get("result"), dict)
+        and (event.get("result") or {}).get("status") == "found"
+    ]
+    write_trace({
+        "trace_id": run_id,
+        "run_id": run_id,
+        "operation": "agent.run_bounded_tool_agent",
+        "request": {"prompt": prompt},
+        "model": {"provider": "google", "name": model_name or MODEL_NAME},
+        "prompt_version": prompt_version,
+        "retrieved_chunks": retrieved_chunks,
+        "tool_calls": [
+            {
+                "tool_name": event.get("tool_name"),
+                "arguments": event.get("arguments"),
+                "status": event.get("status"),
+                "result": event.get("result"),
+                "error": event.get("error"),
+            }
+            for event in trace
+            if event.get("tool_name")
+        ],
+        "latency_ms": round((perf_counter() - started) * 1000, 3),
+        "errors": errors,
+        "final_outcome": {
+            "status": "success" if result.get("ok") else "stopped",
+            "reason": result.get("stop_reason"),
+            "contract_code": result.get("contract_code"),
+        },
+        "final_output": {
+            "answer": result.get("answer"),
+            "message": result.get("message"),
+        },
+    }, trace_output_path)
     return result
 
 

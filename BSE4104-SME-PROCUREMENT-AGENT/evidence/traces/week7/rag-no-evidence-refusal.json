@@ -1,0 +1,25 @@
+{
+  "errors": [],
+  "final_outcome": "refusal",
+  "final_output": {
+    "answer": "cannot answer from available documents",
+    "citations": [],
+    "prompt_version": "policy-qa/v1.0"
+  },
+  "latency_ms": 0.043,
+  "model": {
+    "name": "gemini-3.6-flash",
+    "provider": "google"
+  },
+  "operation": "rag.answer_query",
+  "prompt_version": "policy-qa/v1.0",
+  "request": {
+    "query": "What is the policy for unrelated topic?"
+  },
+  "retrieved_chunks": [],
+  "run_id": "a7a3688a-1b54-4f22-842f-d2f2036e1ab7",
+  "schema_version": "1.0",
+  "timestamp": "2026-10-21T04:34:46.843657+00:00",
+  "tool_calls": [],
+  "trace_id": "a7a3688a-1b54-4f22-842f-d2f2036e1ab7"
+}

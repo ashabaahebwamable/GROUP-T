@@ -1,0 +1,65 @@
+{
+  "errors": [
+    {
+      "message": "Simulated inventory service outage",
+      "type": "TOOL_EXECUTION_ERROR"
+    },
+    {
+      "message": "Simulated inventory service outage",
+      "type": "TOOL_EXECUTION_ERROR"
+    }
+  ],
+  "final_outcome": {
+    "contract_code": "S2",
+    "reason": "TOOL_FAILED_AFTER_RETRY",
+    "status": "handoff"
+  },
+  "final_output": {
+    "draft_id": null,
+    "message": "Retry check_reorder_levels later after the tool failure has been investigated."
+  },
+  "latency_ms": 6.696,
+  "model": {
+    "name": null,
+    "planner": "default_plan",
+    "provider": "none"
+  },
+  "operation": "agent.run_agent",
+  "prompt_version": null,
+  "request": {
+    "as_of_date": "2026-08-27",
+    "item_description": null,
+    "item_id": "INV-003",
+    "preparing_officer_id": "week7-evidence-officer",
+    "quantity_base": 460,
+    "state": null,
+    "unit": "piece"
+  },
+  "retrieved_chunks": [],
+  "run_id": "470a467a-4661-4c15-8b35-4b0411deee7e",
+  "schema_version": "1.0",
+  "timestamp": "2026-10-21T04:34:46.080968+00:00",
+  "tool_calls": [
+    {
+      "arguments": {
+        "item_id": "INV-003"
+      },
+      "error": "TOOL_EXECUTION_ERROR",
+      "message": "Simulated inventory service outage",
+      "result": null,
+      "status": "error",
+      "tool_name": "check_reorder_levels"
+    },
+    {
+      "arguments": {
+        "item_id": "INV-003"
+      },
+      "error": "TOOL_EXECUTION_ERROR",
+      "message": "Simulated inventory service outage",
+      "result": null,
+      "status": "error",
+      "tool_name": "check_reorder_levels"
+    }
+  ],
+  "trace_id": "470a467a-4661-4c15-8b35-4b0411deee7e"
+}

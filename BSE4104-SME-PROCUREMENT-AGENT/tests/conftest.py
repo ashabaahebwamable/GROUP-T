@@ -15,6 +15,15 @@ from src.tools import procurement
 def _isolate_run_logs(tmp_path, monkeypatch):
     monkeypatch.setattr(tools_router, "TOOL_TRACE_PATH", tmp_path / "tool-calls.jsonl")
     monkeypatch.setattr(procurement, "AUDIT_LOG_PATH", tmp_path / "audit-log.jsonl")
+    from src import observability
+    from src.agent import loop
+    from src.rag import answer
+
+    trace_path = tmp_path / "observability.jsonl"
+    monkeypatch.setattr(observability, "DEFAULT_TRACE_PATH", trace_path)
+    monkeypatch.setattr(loop, "DEFAULT_TRACE_PATH", trace_path)
+    monkeypatch.setattr(answer, "DEFAULT_TRACE_PATH", trace_path)
+    monkeypatch.setattr(tools_router, "DEFAULT_TRACE_PATH", trace_path)
 
 
 @pytest.fixture(autouse=True)

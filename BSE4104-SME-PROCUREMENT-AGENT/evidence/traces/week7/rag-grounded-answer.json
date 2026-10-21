@@ -1,0 +1,33 @@
+{
+  "errors": [],
+  "final_outcome": "success",
+  "final_output": {
+    "answer": "An authorised human approver.",
+    "citations": [
+      "knowledge/policy/procurement-policy.md"
+    ],
+    "prompt_version": "policy-qa/v1.0"
+  },
+  "latency_ms": 0.538,
+  "model": {
+    "name": "_rag_traces.<locals>.<lambda>",
+    "provider": "injected"
+  },
+  "operation": "rag.answer_query",
+  "prompt_version": "policy-qa/v1.0",
+  "request": {
+    "query": "Who approves a requisition?"
+  },
+  "retrieved_chunks": [
+    {
+      "content": "Every requisition requires human approval.",
+      "score": 0.91,
+      "source_id": "knowledge/policy/procurement-policy.md"
+    }
+  ],
+  "run_id": "4617e26d-6503-4d8b-b37e-76f4e14de030",
+  "schema_version": "1.0",
+  "timestamp": "2026-10-21T04:34:46.841847+00:00",
+  "tool_calls": [],
+  "trace_id": "4617e26d-6503-4d8b-b37e-76f4e14de030"
+}
