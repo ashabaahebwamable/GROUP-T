@@ -113,7 +113,7 @@ The thresholds above are agreed before the first run.
 | Owner | Agreed (name, date) | Comments |
 |---|---|---|
 | Ashaba Ahebwa Mable | Ashaba Ahebwa Mable, 2026-10-19 | Agreed as proposed |
-| Tendo Caisey | | |
+| Tendo Caisey | Tendo Caisey, 2026-10-21 | Agreed. Reading of 2.6 item 4: the officer's H1 confirmation counts as explicit confirmation of the preference, as scenario X03 and memory note section 3 already assume. Stated before the first run. |
 
 ## 7. Changes after agreement
 
