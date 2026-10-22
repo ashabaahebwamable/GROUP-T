@@ -95,6 +95,18 @@ class QuantityValidationTests(unittest.TestCase):
         with self.assertRaises(QuantityValidationError):
             validate_quantity(float("nan"))
 
+    def test_positive_infinity_rejected(self):
+        with self.assertRaises(QuantityValidationError):
+            validate_quantity(float("inf"))
+
+    def test_infinite_string_rejected(self):
+        with self.assertRaises(QuantityValidationError):
+            validate_quantity("Infinity")
+
+    def test_integer_too_large_for_float_rejected(self):
+        with self.assertRaises(QuantityValidationError):
+            validate_quantity(10**10000)
+
     def test_list_type_rejected(self):
         with self.assertRaises(QuantityValidationError):
             validate_quantity([200])

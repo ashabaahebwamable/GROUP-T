@@ -738,7 +738,6 @@ def _run_agent_impl(
     elif max_tool_retries < 0:
         raise ValueError("max_tool_retries must be zero or greater.")
 
-    resumed = state is not None
     if state is None:
         if item_id is not None and item_description is not None:
             raise ValueError("Pass either item_id or item_description, not both.")
@@ -774,10 +773,10 @@ def _run_agent_impl(
 
     tool_events: list[dict[str, Any]] = []
 
-    # Guardrail (US-02 AC3, AI boundary matrix rows 1 and 15): a quantity given
-    # for a new case is validated by code before any tool or model call, so a
-    # zero, negative or non-numeric value never reaches the planner.
-    quantity_error = _quantity_error(state) if not resumed else None
+    # Guardrail (US-02 AC3, AI boundary matrix rows 1 and 15): validate any
+    # supplied quantity before the planner can make a tool call, including on
+    # resumed cases. None still follows the existing confirmation flow.
+    quantity_error = _quantity_error(state)
     if quantity_error is not None:
         state["stop_reason"] = "INVALID_QUANTITY"
         state["outstanding"] = (
