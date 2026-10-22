@@ -190,6 +190,12 @@ class Sandbox:
         stack = self._stack
         stack.enter_context(patch.object(tools_router, "TOOL_TRACE_PATH", self.trace))
         stack.enter_context(patch.object(procurement, "AUDIT_LOG_PATH", self.audit))
+        # Structured request traces (src/observability) would otherwise be appended to
+        # evidence/traces/observability.jsonl, which criteria.md section 4 forbids.
+        self.observability = self.dir / "observability.jsonl"
+        from src.rag import answer as rag_answer
+        for module in (loop, tools_router, rag_answer):
+            stack.enter_context(patch.object(module, "DEFAULT_TRACE_PATH", self.observability))
         stack.enter_context(patch.dict(tools_router.TOOL_REGISTRY, {
             "create_requisition_draft": functools.partial(
                 procurement.create_requisition_draft,
