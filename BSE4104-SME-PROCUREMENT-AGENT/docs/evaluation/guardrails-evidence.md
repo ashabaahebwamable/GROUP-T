@@ -17,7 +17,7 @@ The table distinguishes implemented code controls from prompt-level mitigations 
 | G5 | Tool allow-list | `tools_router.py::dispatch_tool`, `TOOL_REGISTRY`; blocked as `TOOL_NOT_ALLOWED` (S3), never retried | `tests/agent/test_stop_conditions_and_allowlist.py` | U03, A03 | Enforced |
 | G6 | Agent tool-call iteration limit | `src/agent/loop.py::_run_loop` (`ITERATION_LIMIT_REACHED`, S1) | `tests/agent/test_stop_conditions_and_allowlist.py` (`IterationLimitTests`) | X01 | Enforced; halt records stop metadata while preserving case progress |
 | G7 | Agent has no approval tool; approve/reject/query decisions require an approver role and a non-preparer | `src/agent/tools_router.py::TOOL_REGISTRY`; `src/workflow/state_machine.py::_check_approver` | `tests/workflow/test_state_machine.py`, `tests/test_agent_integration.py` | A03, U01, U02 | Enforced for decision actions. `submit_for_approval` itself has no actor/role check (see 3.2) |
-| G8 | Human confirmation of the computed supplier is required before draft creation | `src/agent/tools_router.py::dispatch_tool`, `SUPPLIER_NOT_CONFIRMED` | `tests/test_week4_gap_fixes.py::test_draft_without_officer_confirmation_is_refused`, `tests/test_agent_integration.py` | A04, X03 | Enforced; the source-scan test for confirmation calls currently fails due to FC-02 |
+| G8 | Human confirmation of the computed supplier is required before draft creation | `src/agent/tools_router.py::dispatch_tool`, `SUPPLIER_NOT_CONFIRMED` | `tests/test_week4_gap_fixes.py::test_draft_without_officer_confirmation_is_refused`, `tests/test_agent_integration.py` | A04, X03 | Enforced; FC-02 is fixed by moving the evaluation runner outside `src/`, and the unchanged source-scan test passes |
 | G9 | Draft supplier must match the deterministic computed recommendation | `src/agent/tools_router.py::_check_draft_against_comparison`, `check_model_vs_computed` (`MODEL_VALUE_MISMATCH`, S7) | `tests/test_week4_gap_fixes.py::test_supplier_different_from_computed_is_refused` | I03 | Enforced for supplier identity only; other model-provided figures are not checked by this draft pre-check |
 | G10 | Quotation-letter instructions are treated as untrusted data | Prompt layer: `prompts/quotation_extraction_v1.2.txt` lines 39-47. Code controls limit available tools and require policy checks and human confirmation for drafts | Adversarial scenarios A01, A02 | A01, A02 | **TO FILL**: no live A01/A02 evidence yet; code controls mitigate impact but do not prove the model treats injected text as data |
 
@@ -50,9 +50,9 @@ A tool not in `TOOL_REGISTRY` is blocked before execution, logged to the run tra
 
 ### G7 and G8 Approval and confirmation
 
-`_check_approver` raises `UnauthorisedActionError` unless the actor has the approver role and did not prepare the requisition; it is used for approve, reject and query decisions. The router has no approve, reject or send tool. A draft cannot be created without a named officer's H1 confirmation of the computed supplier. `tests/memory/test_memory_controls.py::test_nothing_in_src_calls_confirm_supplier` is currently failing because the evaluation runner calls `confirm_supplier` from `src/eval/run.py` (FC-02), so this source-scan evidence is not passing.
+`_check_approver` raises `UnauthorisedActionError` unless the actor has the approver role and did not prepare the requisition; it is used for approve, reject and query decisions. The router has no approve, reject or send tool. A draft cannot be created without a named officer's H1 confirmation of the computed supplier. The evaluation runner (including its simulated officer confirmation) lives in `scripts/eval_runner.py`; `src/eval/run.py` is only a compatibility CLI entry point. The unchanged source-scan test `tests/memory/test_memory_controls.py::NoWriteWithoutConfirmationTests::test_nothing_in_src_calls_confirm_supplier` passes.
 
-> **Known issue (FC-02):** this test currently fails because `src/eval/run.py` calls `confirm_supplier`. The guardrail itself is intact; the runner needs to move or the test needs a documented exception.
+> **FC-02 resolved in the PR #16 branch:** the evaluation harness was moved outside application source. The test remains strict and unchanged.
 
 ### G9 Computed value stays authoritative
 
@@ -64,20 +64,19 @@ The extraction prompt states that everything inside `<QUOTATION>` is untrusted d
 
 ## 3. Test output
 
-Run from the project root on 22 Oct 2026:
+Run from the project root on 22 Oct 2026 against PR #16 head `0155f3e`:
 
 ```
-$ python -m pytest -q tests/agent tests/test_tool_failure_and_authorization.py tests/workflow \
-    tests/test_quantity_validation.py tests/test_agent_loop.py tests/observability \
-    tests/test_preference_isolation.py
-115 passed, 131 subtests passed
+$ python -m pytest tests -q
+203 passed, 173 subtests passed
 
-$ python -m pytest -q tests --ignore=tests/test_week3_rag.py --ignore=tests/test_model_client.py
-1 failed, 189 passed, 171 subtests passed
-FAILED tests/memory/test_memory_controls.py::NoWriteWithoutConfirmationTests::test_nothing_in_src_calls_confirm_supplier
+$ python -m src.eval.run --check
+Scenarios in final-scenarios.md: 40
+Automated in the runner: 12
+Exit code: 0
 ```
 
-**TO FILL:** re-run the full suite once FC-02 is fixed and paste a clean result. `test_week3_rag.py` and `test_model_client.py` were not run here; run them on a machine with the embedding model and add the output.
+**TO FILL:** PR CI must complete successfully. G10 also needs live A01/A02 results; automated scenario coverage does not include those adversarial prompts yet.
 
 ### 3.2 Gaps to state honestly in the Week 7 report
 
