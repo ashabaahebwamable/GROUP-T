@@ -1,4 +1,4 @@
-<img width="522" height="206" alt="image" src="https://github.com/user-attachments/assets/73e1dd5a-bb2c-4c1d-ae59-6ec36b39d8b3" /># AI Engineering Log
+# AI Engineering Log
 
 > Required by BSE4104 §6: _AI-generated work is permitted and expected. Unexplained work is not._
 > This log records material AI-assisted decisions and generated artefacts.
