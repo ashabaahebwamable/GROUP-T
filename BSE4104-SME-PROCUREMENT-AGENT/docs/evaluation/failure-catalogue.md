@@ -11,7 +11,7 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 |ID|Area|Failure|Found|Status|
 |-|-|-|-|-|
 |FC-01|Agent loop|Invalid quantity not rejected before tools run|19 Oct (E05)|Fixed, re-tested; [PR #16](https://github.com/ashabaahebwamable/GROUP-T/pull/16)|
-|FC-02|Tools / safety|Evaluation runner calls a human-only action from `src/`|22 Oct (test suite)|**Open**|
+|FC-02|Tools / safety|Evaluation runner calls a human-only action from `src/`|22 Oct (test suite)|Fixed, re-tested; [PR #16](https://github.com/ashabaahebwamable/GROUP-T/pull/16)|
 |FC-03|Observability|Evaluation runner wrote to the real trace log|22 Oct (smoke run)|Fixed, re-tested; [PR #17](https://github.com/ashabaahebwamable/GROUP-T/pull/17)|
 |FC-04|Retrieval|Citations name the file, not the clause|24 Sep (W3)|**Verify** whether fixed|
 |FC-05|Retrieval|Similarity threshold does not separate answerable from unanswerable|24 Sep (W3)|**Verify** whether fixed|
@@ -23,16 +23,16 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 
 * **Symptom:** INV-001 with quantity `0`, `-5` or `"abc"`: the agent made five tool calls and ended at S2 instead of refusing the input (US-02 AC3, scenario E05).
 * **Root cause:** `src/validation.py::validate_quantity` was written in Week 2 and unit-tested, but nothing in `src/` called it. The control existed only on paper (AI boundary matrix rows 1 and 15).
-* **Fix:** `run_agent` now validates a new case's quantity before the loop; invalid input stops with `INVALID_QUANTITY` (S5), zero tool calls. Files: `src/agent/loop.py`, `src/agent/stop_codes.py`, `docs/architecture/agent-task-contract.md`. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/16
-* **Re-test:** `tests/agent/test_quantity_guardrail.py` (5 tests, including one that fails if any tool is called); runner `E05 PASS` with all three inputs stopping at `S5 INVALID_QUANTITY`. Full suite: 189 passed, 1 known failure (FC-02, unrelated to this change).
+* **Fix:** `run_agent` now validates a supplied quantity after creating/restoring case state and before the planner loop; invalid input stops with `INVALID_QUANTITY` (S5), zero tool calls. The validator also rejects non-finite quantities and values too large to convert safely. Files: `src/agent/loop.py`, `src/validation.py`, `src/agent/stop_codes.py`, `docs/architecture/agent-task-contract.md`. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/16
+* **Re-test:** `tests/agent/test_quantity_guardrail.py` covers invalid new and resumed cases (including a no-tool-call assertion); `tests/test_quantity_validation.py` covers zero, negative, non-numeric, boolean, NaN, infinity and oversized integer values. E05 smoke: PASS; focused quantity/agent/workflow suite: 94 passed, 129 subtests passed; full suite: 203 passed, 173 subtests passed.
 
 ## FC-02 Evaluation runner calls a human-only action from `src/`
 
 * **Symptom:** `tests/memory/test_memory_controls.py::test_nothing_in_src_calls_confirm_supplier` fails with `{'src/eval/run.py': {'confirm'}} != {}`.
 * **Root cause:** the runner (N01, N02, N03, X03 resume cases) calls `confirm_supplier` to simulate the officer, and it lives under `src/`. The test enforces that only officer-facing application code may confirm a supplier, so that nothing the agent can reach can confirm on a person's behalf (criteria 2.6, item 3).
-* **Fix (proposed, not applied):** move the runner's officer simulation to `scripts/` or a test helper outside `src/`, or add an explicit, documented exception for `src/eval/run.py` in the test. Do not weaken the test without recording why. **PR: TO FILL**
-* **Re-test:** full suite must pass. **TO FILL**
-* **Status:** Open. CI is red until this is resolved.
+* **Fix:** moved the evaluation runner and its simulated officer action to `scripts/eval_runner.py`; `src/eval/run.py` remains a compatibility CLI entry point without calling the human action. The source-scan safety test remains unchanged. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/16
+* **Re-test:** `tests/memory/test_memory_controls.py::NoWriteWithoutConfirmationTests::test_nothing_in_src_calls_confirm_supplier` passes in the full suite: 203 passed, 173 subtests passed. `python -m src.eval.run --check` also passes through the compatibility CLI.
+* **Status:** Fixed and re-tested locally; PR CI must pass before merge.
 
 ## FC-03 Evaluation runner wrote to the real trace log
 
@@ -80,4 +80,3 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 ## Failures from this evaluation run
 
 **TO FILL** after the full run: add one entry per FAIL in `final-results.md` (symptom, root cause, fix, PR, re-test). Expected candidates: any model-backed scenario that invents a figure, and any scenario whose runner result Ashley overrides on review.
-
