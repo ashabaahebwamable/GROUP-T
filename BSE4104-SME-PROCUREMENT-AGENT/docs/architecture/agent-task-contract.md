@@ -129,7 +129,7 @@ The agent halts on any of the following, preserves the case state and hands off 
 | S2 | `TOOL_FAILED_AFTER_RETRY` | Yes (Trace 3A) |
 | S3 | `TOOL_NOT_ALLOWED` | Yes; the run stops and is not retried (tests) |
 | S4 | `POLICY_BLOCKING_FLAGS`, `NO_RECOMMENDED_SUPPLIER` | Yes (Trace 1c) |
-| S5 | `AMBIGUOUS_ITEM`, `ITEM_NOT_FOUND`, `REORDER_STATUS_UNASSESSABLE`, `MISSING_QUANTITY`, `QUANTITY_CONFIRMATION_REQUIRED`, `MISSING_PREPARING_OFFICER`, `NO_REORDER_REQUIRED` | Yes (Trace 2). `NO_REORDER_REQUIRED` ends with status `stopped`, not `handoff`, because there is nothing to hand off |
+| S5 | `AMBIGUOUS_ITEM`, `ITEM_NOT_FOUND`, `REORDER_STATUS_UNASSESSABLE`, `MISSING_QUANTITY`, `INVALID_QUANTITY`, `QUANTITY_CONFIRMATION_REQUIRED`, `MISSING_PREPARING_OFFICER`, `NO_REORDER_REQUIRED` | Yes (Trace 2). `NO_REORDER_REQUIRED` ends with status `stopped`, not `handoff`, because there is nothing to hand off |
 | S6 | `POLICY_NOT_FOUND` | Yes (tests) |
 | S7 | `MODEL_VALUE_MISMATCH` | Yes, in the router; the rule-based planner cannot trigger it |
 | S8 | `MODEL_UNAVAILABLE`, `MODEL_NO_CANDIDATES` (model loop); `INVALID_PLAN_ACTION` (unusable planner output) | Yes (tests) |
