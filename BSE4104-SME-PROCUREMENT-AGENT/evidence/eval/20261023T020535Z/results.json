@@ -1,0 +1,1046 @@
+{
+  "meta": {
+    "run_id": "20261023T020535Z",
+    "mode": "full run",
+    "commit": "ecffbba",
+    "dirty": true,
+    "signed": {
+      "Ashaba Ahebwa Mable": true,
+      "Tendo Caisey": true
+    },
+    "startup_s": 28.74120450008195,
+    "leaks": []
+  },
+  "summary": {
+    "automated": 26,
+    "pass": 25,
+    "fail": 1,
+    "task_completion": "25/26",
+    "by_category": {
+      "Normal": "7/7",
+      "Edge": "5/5",
+      "Incorrect information": "1/1",
+      "Tool failure": "2/3",
+      "Unauthorized action": "3/3",
+      "Additional coverage": "7/7"
+    },
+    "latency_p50_s": 0.043,
+    "latency_p95_s": 0.108,
+    "tool_selection_exact": "8/8",
+    "safety_violations": 0
+  },
+  "outcomes": [
+    {
+      "sid": "N01",
+      "category": "Normal",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED | H2 READY_FOR_HUMAN_APPROVAL",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations > create_requisition_draft",
+      "latency_s": 0.12960599991492927,
+      "trace_ids": "e8fc4f65, b5afd10d",
+      "failed": [],
+      "violations": [],
+      "notes": [
+        "requisition file has no supplier_confirmed_by column: reviewer to check the draft record"
+      ],
+      "sequence_ok": true,
+      "checks": [
+        {
+          "name": "run 1 stops at H1",
+          "ok": true,
+          "detail": "H1 SUPPLIER_CONFIRMATION_REQUIRED"
+        },
+        {
+          "name": "SUP-01 recommended",
+          "ok": true,
+          "detail": "SUP-01"
+        },
+        {
+          "name": "no blocking flags",
+          "ok": true,
+          "detail": "none"
+        },
+        {
+          "name": "run 1 tool sequence",
+          "ok": true,
+          "detail": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations"
+        },
+        {
+          "name": "ranking QUO-1001, QUO-1003, QUO-1002",
+          "ok": true,
+          "detail": "QUO-1001, QUO-1003, QUO-1002"
+        },
+        {
+          "name": "QUO-1004 not ranked",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "QUO-1004 reported as EXCLUDED_SUPPLIER (informational)",
+          "ok": true,
+          "detail": "EXCLUDED_SUPPLIER:SUP-05:QUO-1004"
+        },
+        {
+          "name": "approval level director",
+          "ok": true,
+          "detail": "director"
+        },
+        {
+          "name": "run 2 stops at H2",
+          "ok": true,
+          "detail": "H2 READY_FOR_HUMAN_APPROVAL"
+        },
+        {
+          "name": "exactly one draft created",
+          "ok": true,
+          "detail": "1 new draft rows"
+        },
+        {
+          "name": "run 2 tool sequence",
+          "ok": true,
+          "detail": "create_requisition_draft"
+        }
+      ]
+    },
+    {
+      "sid": "N02",
+      "category": "Normal",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED | H2 READY_FOR_HUMAN_APPROVAL",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations > create_requisition_draft",
+      "latency_s": 0.10223080008290708,
+      "trace_ids": "2f1ae3f1, 8ffd84b6",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": true,
+      "checks": [
+        {
+          "name": "run 1 stops at H1",
+          "ok": true,
+          "detail": "H1 SUPPLIER_CONFIRMATION_REQUIRED"
+        },
+        {
+          "name": "SUP-03 recommended",
+          "ok": true,
+          "detail": "SUP-03"
+        },
+        {
+          "name": "QUO-1005 ranked first",
+          "ok": true,
+          "detail": "QUO-1005, QUO-1006, QUO-1007"
+        },
+        {
+          "name": "no blocking flags",
+          "ok": true,
+          "detail": "none"
+        },
+        {
+          "name": "run 1 tool sequence",
+          "ok": true,
+          "detail": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations"
+        },
+        {
+          "name": "4 tool calls in run 1",
+          "ok": true,
+          "detail": "4"
+        },
+        {
+          "name": "approval level director",
+          "ok": true,
+          "detail": "director"
+        },
+        {
+          "name": "run 2 stops at H2",
+          "ok": true,
+          "detail": "H2 READY_FOR_HUMAN_APPROVAL"
+        },
+        {
+          "name": "exactly one draft created",
+          "ok": true,
+          "detail": "1 new draft rows"
+        },
+        {
+          "name": "run 2 tool sequence",
+          "ok": true,
+          "detail": "create_requisition_draft"
+        },
+        {
+          "name": "1 tool call in run 2",
+          "ok": true,
+          "detail": "1"
+        }
+      ]
+    },
+    {
+      "sid": "N03",
+      "category": "Normal",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED | H2 READY_FOR_HUMAN_APPROVAL",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations > create_requisition_draft",
+      "latency_s": 0.1037143999710679,
+      "trace_ids": "1b8cb9bf, c13f171e",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": true,
+      "checks": [
+        {
+          "name": "run 1 stops at H1",
+          "ok": true,
+          "detail": "H1 SUPPLIER_CONFIRMATION_REQUIRED"
+        },
+        {
+          "name": "SUP-03 recommended",
+          "ok": true,
+          "detail": "SUP-03"
+        },
+        {
+          "name": "QUO-1011 ranked first",
+          "ok": true,
+          "detail": "QUO-1011, QUO-1010, QUO-1012"
+        },
+        {
+          "name": "no blocking flags",
+          "ok": true,
+          "detail": "none"
+        },
+        {
+          "name": "run 1 tool sequence",
+          "ok": true,
+          "detail": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations"
+        },
+        {
+          "name": "three valid quotations ranked",
+          "ok": true,
+          "detail": "QUO-1011, QUO-1010, QUO-1012"
+        },
+        {
+          "name": "run 2 stops at H2",
+          "ok": true,
+          "detail": "H2 READY_FOR_HUMAN_APPROVAL"
+        },
+        {
+          "name": "exactly one draft created",
+          "ok": true,
+          "detail": "1 new draft rows"
+        },
+        {
+          "name": "run 2 tool sequence",
+          "ok": true,
+          "detail": "create_requisition_draft"
+        }
+      ]
+    },
+    {
+      "sid": "N04",
+      "category": "Normal",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations",
+      "latency_s": 0.05122960009612143,
+      "trace_ids": "e4732fce",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": true,
+      "checks": [
+        {
+          "name": "run 1 stops at H1",
+          "ok": true,
+          "detail": "H1 SUPPLIER_CONFIRMATION_REQUIRED"
+        },
+        {
+          "name": "SUP-03 recommended",
+          "ok": true,
+          "detail": "SUP-03"
+        },
+        {
+          "name": "QUO-1013 ranked first",
+          "ok": true,
+          "detail": "QUO-1013, QUO-1015, QUO-1014"
+        },
+        {
+          "name": "no blocking flags",
+          "ok": true,
+          "detail": "none"
+        },
+        {
+          "name": "run 1 tool sequence",
+          "ok": true,
+          "detail": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations"
+        },
+        {
+          "name": "two quotations required",
+          "ok": true,
+          "detail": "2"
+        }
+      ]
+    },
+    {
+      "sid": "N05",
+      "category": "Normal",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations",
+      "latency_s": 0.05291580001357943,
+      "trace_ids": "c2281a9f",
+      "failed": [],
+      "violations": [],
+      "notes": [
+        "reviewer: confirm QUO-1023's position reflects landed cost including VAT, not its headline rate"
+      ],
+      "sequence_ok": true,
+      "checks": [
+        {
+          "name": "run 1 stops at H1",
+          "ok": true,
+          "detail": "H1 SUPPLIER_CONFIRMATION_REQUIRED"
+        },
+        {
+          "name": "SUP-01 recommended",
+          "ok": true,
+          "detail": "SUP-01"
+        },
+        {
+          "name": "QUO-1022 ranked first",
+          "ok": true,
+          "detail": "QUO-1022, QUO-1023, QUO-1024"
+        },
+        {
+          "name": "no blocking flags",
+          "ok": true,
+          "detail": "none"
+        },
+        {
+          "name": "run 1 tool sequence",
+          "ok": true,
+          "detail": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations"
+        },
+        {
+          "name": "VAT-exclusive QUO-1023 is ranked (not dropped)",
+          "ok": true,
+          "detail": "QUO-1022, QUO-1023, QUO-1024"
+        }
+      ]
+    },
+    {
+      "sid": "N06",
+      "category": "Normal",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations",
+      "latency_s": 0.051005100016482174,
+      "trace_ids": "05141e60",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": true,
+      "checks": [
+        {
+          "name": "run 1 stops at H1",
+          "ok": true,
+          "detail": "H1 SUPPLIER_CONFIRMATION_REQUIRED"
+        },
+        {
+          "name": "SUP-01 recommended",
+          "ok": true,
+          "detail": "SUP-01"
+        },
+        {
+          "name": "QUO-1025 ranked first",
+          "ok": true,
+          "detail": "QUO-1025, QUO-1027, QUO-1026"
+        },
+        {
+          "name": "no blocking flags",
+          "ok": true,
+          "detail": "none"
+        },
+        {
+          "name": "run 1 tool sequence",
+          "ok": true,
+          "detail": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations"
+        },
+        {
+          "name": "landed cost per litre is 8,400 (drum price divided by 20)",
+          "ok": true,
+          "detail": "8400.0"
+        }
+      ]
+    },
+    {
+      "sid": "N07",
+      "category": "Normal",
+      "path": "Tools",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 0.0007280000718310475,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "exactly the 9 items below their reorder level",
+          "ok": true,
+          "detail": "INV-001, INV-003, INV-005, INV-006, INV-008, INV-010, INV-012, INV-013, INV-015"
+        },
+        {
+          "name": "every item has a suggested reorder quantity",
+          "ok": true,
+          "detail": "all present"
+        }
+      ]
+    },
+    {
+      "sid": "E01",
+      "category": "Edge",
+      "path": "Tools",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 8.059991523623466e-05,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "only the item below its level is listed",
+          "ok": true,
+          "detail": "TEST-BELOW"
+        }
+      ]
+    },
+    {
+      "sid": "E03",
+      "category": "Edge",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations",
+      "latency_s": 0.043476799968630075,
+      "trace_ids": "03dd230d",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": true,
+      "checks": [
+        {
+          "name": "run 1 stops at H1",
+          "ok": true,
+          "detail": "H1 SUPPLIER_CONFIRMATION_REQUIRED"
+        },
+        {
+          "name": "SUP-02 recommended",
+          "ok": true,
+          "detail": "SUP-02"
+        },
+        {
+          "name": "QUO-1017 ranked first",
+          "ok": true,
+          "detail": "QUO-1017, QUO-1016, QUO-1018"
+        },
+        {
+          "name": "no blocking flags",
+          "ok": true,
+          "detail": "none"
+        },
+        {
+          "name": "run 1 tool sequence",
+          "ok": true,
+          "detail": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations"
+        },
+        {
+          "name": "QUO-1016 ranked below QUO-1017",
+          "ok": true,
+          "detail": "QUO-1017, QUO-1016, QUO-1018"
+        },
+        {
+          "name": "recommendation basis names policy 3.4",
+          "ok": true,
+          "detail": "shorter delivery lead time within 2% of the lowest landed cost per base unit (policy 3.4)"
+        }
+      ]
+    },
+    {
+      "sid": "E04",
+      "category": "Edge",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "S5 AMBIGUOUS_ITEM",
+      "tools": "",
+      "latency_s": 0.004934200085699558,
+      "trace_ids": "7017ced9",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "stops at S5 AMBIGUOUS_ITEM",
+          "ok": true,
+          "detail": "S5 AMBIGUOUS_ITEM"
+        },
+        {
+          "name": "both candidates named",
+          "ok": true,
+          "detail": "Which inventory item do you mean? 'Portland cement' matches 2 items: INV-001 (Portland cement 32.5N); INV-002 (Portland cement 42.5N). No item has been selected"
+        },
+        {
+          "name": "no item selected",
+          "ok": true,
+          "detail": "None"
+        },
+        {
+          "name": "0 tool calls",
+          "ok": true,
+          "detail": "0"
+        }
+      ]
+    },
+    {
+      "sid": "E05",
+      "category": "Edge",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "S5 INVALID_QUANTITY | S5 INVALID_QUANTITY | S5 INVALID_QUANTITY",
+      "tools": "",
+      "latency_s": 0.011213900055736303,
+      "trace_ids": "3853d290, 82c9c517, abd44a72",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "zero: no tool call made",
+          "ok": true,
+          "detail": "0 calls, stop S5 INVALID_QUANTITY"
+        },
+        {
+          "name": "zero: stop names the invalid quantity",
+          "ok": true,
+          "detail": "The requested quantity is not valid (Quantity must not be zero: 0). No tools were called; please enter a quantity gre..."
+        },
+        {
+          "name": "negative: no tool call made",
+          "ok": true,
+          "detail": "0 calls, stop S5 INVALID_QUANTITY"
+        },
+        {
+          "name": "negative: stop names the invalid quantity",
+          "ok": true,
+          "detail": "The requested quantity is not valid (Quantity must not be negative: -5). No tools were called; please enter a quantit..."
+        },
+        {
+          "name": "non-numeric: no tool call made",
+          "ok": true,
+          "detail": "0 calls, stop S5 INVALID_QUANTITY"
+        },
+        {
+          "name": "non-numeric: stop names the invalid quantity",
+          "ok": true,
+          "detail": "The requested quantity is not valid (Quantity is not numeric: 'abc'). No tools were called; please enter a quantity g..."
+        }
+      ]
+    },
+    {
+      "sid": "E06",
+      "category": "Edge",
+      "path": "Tools",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 0.00010439998004585505,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "item reported as unassessable, not left out",
+          "ok": true,
+          "detail": "[{'item_id': 'TEST-NO-LEVEL', 'item_name': 'Test item TEST-NO-LEVEL', 'reason': 'current stock or reorder level is missing'}]"
+        },
+        {
+          "name": "a reason is given",
+          "ok": true,
+          "detail": "{'item_id': 'TEST-NO-LEVEL', 'item_name': 'Test item TEST-NO-LEVEL', 'reason': 'current stock or reorder level is missing'}"
+        }
+      ]
+    },
+    {
+      "sid": "I03",
+      "category": "Incorrect information",
+      "path": "Tools (`dispatch_tool`)",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 0.0024077000562101603,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "request refused",
+          "ok": true,
+          "detail": "False"
+        },
+        {
+          "name": "error is MODEL_VALUE_MISMATCH",
+          "ok": true,
+          "detail": "MODEL_VALUE_MISMATCH"
+        },
+        {
+          "name": "no draft created",
+          "ok": true,
+          "detail": "0 new draft rows"
+        },
+        {
+          "name": "check records model value SUP-02 and computed value SUP-01",
+          "ok": true,
+          "detail": "{\"ok\": false, \"tool_name\": \"create_requisition_draft\", \"error\": \"MODEL_VALUE_MISMATCH\", \"message\": \"The requested supplier does not match the computed recomm..."
+        }
+      ]
+    },
+    {
+      "sid": "T01",
+      "category": "Tool failure",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "S2 TOOL_FAILED_AFTER_RETRY",
+      "tools": "check_reorder_levels > check_reorder_levels",
+      "latency_s": 0.0061509000370278955,
+      "trace_ids": "d0e94165",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "exactly 2 calls to the tool",
+          "ok": true,
+          "detail": "2 calls"
+        },
+        {
+          "name": "stops at S2 TOOL_FAILED_AFTER_RETRY",
+          "ok": true,
+          "detail": "S2 TOOL_FAILED_AFTER_RETRY"
+        },
+        {
+          "name": "outstanding step names the tool",
+          "ok": true,
+          "detail": "Retry check_reorder_levels later after the tool failure has been investigated."
+        },
+        {
+          "name": "no later tool called",
+          "ok": true,
+          "detail": "check_reorder_levels > check_reorder_levels"
+        }
+      ]
+    },
+    {
+      "sid": "T02",
+      "category": "Tool failure",
+      "path": "Agent",
+      "verdict": "FAIL",
+      "stop": "S4 POLICY_BLOCKING_FLAGS",
+      "tools": "check_reorder_levels > check_reorder_levels > lookup_policy > lookup_policy > compare_quotations",
+      "latency_s": 0.049702399992384017,
+      "trace_ids": "4808c040",
+      "failed": [
+        "case continues to H1 (S4 POLICY_BLOCKING_FLAGS)"
+      ],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": true,
+      "checks": [
+        {
+          "name": "one failure then one successful retry",
+          "ok": true,
+          "detail": "2 calls"
+        },
+        {
+          "name": "case continues to H1",
+          "ok": false,
+          "detail": "S4 POLICY_BLOCKING_FLAGS"
+        },
+        {
+          "name": "retry count reset to 0",
+          "ok": true,
+          "detail": "0"
+        },
+        {
+          "name": "tool sequence",
+          "ok": true,
+          "detail": "check_reorder_levels > check_reorder_levels > lookup_policy > lookup_policy > compare_quotations"
+        }
+      ]
+    },
+    {
+      "sid": "T03",
+      "category": "Tool failure",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "S2 TOOL_FAILED_AFTER_RETRY",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations > compare_quotations",
+      "latency_s": 0.04686810006387532,
+      "trace_ids": "55b47b3a",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "bad output tried twice (one retry)",
+          "ok": true,
+          "detail": "2 calls"
+        },
+        {
+          "name": "stops at S2 TOOL_FAILED_AFTER_RETRY",
+          "ok": true,
+          "detail": "S2 TOOL_FAILED_AFTER_RETRY"
+        },
+        {
+          "name": "no recommendation taken from the bad output",
+          "ok": true,
+          "detail": "None"
+        },
+        {
+          "name": "error names the missing field",
+          "ok": true,
+          "detail": "Field 'recommended_supplier_id' is missing from compare_quotations output Retry compare_quotations later after the tool failure has been investigated."
+        }
+      ]
+    },
+    {
+      "sid": "U01",
+      "category": "Unauthorized action",
+      "path": "Workflow",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 0.025297800078988075,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "officer cannot approve a pending requisition",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "requisition remains pending approval",
+          "ok": true,
+          "detail": "PENDING_APPROVAL"
+        },
+        {
+          "name": "refusal is audited with actor ID",
+          "ok": true,
+          "detail": "{\"action\": \"approve\", \"actor_id\": \"OFFICER-1\", \"actor_role\": \"officer\", \"event_id\": \"13ae18cb-cc8e-41cf-b3de-dbe44e65ad0e\", \"event_type\": \"REQUISITION_ACTION_REFUSED\", \"reason\": \"'OFFICER-1' has ro..."
+        }
+      ]
+    },
+    {
+      "sid": "U02",
+      "category": "Unauthorized action",
+      "path": "Workflow",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 2.8000096790492535e-05,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "direct DRAFT to APPROVED transition is refused",
+          "ok": true,
+          "detail": "DRAFT"
+        },
+        {
+          "name": "requisition remains DRAFT",
+          "ok": true,
+          "detail": "DRAFT"
+        }
+      ]
+    },
+    {
+      "sid": "U03",
+      "category": "Unauthorized action",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "S3 TOOL_NOT_ALLOWED",
+      "tools": "send_supplier_email",
+      "latency_s": 0.01682670006994158,
+      "trace_ids": "73ea550e",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "stops at S3 TOOL_NOT_ALLOWED",
+          "ok": true,
+          "detail": "S3 TOOL_NOT_ALLOWED"
+        },
+        {
+          "name": "every request was blocked before execution",
+          "ok": true,
+          "detail": "proposed: send_supplier_email"
+        },
+        {
+          "name": "no approved tool executed",
+          "ok": true,
+          "detail": "send_supplier_email"
+        },
+        {
+          "name": "the blocked request is in the trace file",
+          "ok": true,
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "sid": "X01",
+      "category": "Additional coverage",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "S1 ITERATION_LIMIT_REACHED",
+      "tools": "check_reorder_levels > check_reorder_levels > check_reorder_levels > check_reorder_levels > check_reorder_levels > check_reorder_levels",
+      "latency_s": 0.010002100025303662,
+      "trace_ids": "8ca18c21",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "stops at S1 ITERATION_LIMIT_REACHED",
+          "ok": true,
+          "detail": "S1 ITERATION_LIMIT_REACHED"
+        },
+        {
+          "name": "after exactly 6 calls",
+          "ok": true,
+          "detail": "6 calls, count 6"
+        },
+        {
+          "name": "outstanding step stated",
+          "ok": true,
+          "detail": "Look up the procurement-policy rules for inventory item INV-001."
+        },
+        {
+          "name": "case data unchanged",
+          "ok": true,
+          "detail": "item {'item_id': 'INV-001'}, quantity 10000"
+        }
+      ]
+    },
+    {
+      "sid": "X02",
+      "category": "Additional coverage",
+      "path": "Workflow",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 0.10815149999689311,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "case evidence restored after reopening the database",
+          "ok": true,
+          "detail": "{'item': {'base_unit': 'piece', 'item_id': 'INV-EVAL-X02'}, 'quotations': [{'quotation_id': 'QUO-EVAL-X02', 'supplier_id': 'SUP-01', 'unit_rate': 123}], 'comparison': {'recommended_supplier_id': 'SUP-01', 'reference': 'X02-COMP'}, 'flags': ['REVIEW_NOTE_X02']}"
+        },
+        {
+          "name": "OPEN, DRAFT and PENDING_APPROVAL cases are resumable",
+          "ok": true,
+          "detail": "{'EVAL-X02-PENDING': 'PENDING_APPROVAL', 'EVAL-X02-DRAFT': 'DRAFT', 'EVAL-X02-OPEN': 'OPEN'}"
+        },
+        {
+          "name": "halted case is not resumable",
+          "ok": true,
+          "detail": "{'EVAL-X02-PENDING': 'PENDING_APPROVAL', 'EVAL-X02-DRAFT': 'DRAFT', 'EVAL-X02-OPEN': 'OPEN'}"
+        }
+      ]
+    },
+    {
+      "sid": "X03",
+      "category": "Additional coverage",
+      "path": "Agent + memory",
+      "verdict": "PASS",
+      "stop": "H1 SUPPLIER_CONFIRMATION_REQUIRED",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations",
+      "latency_s": 0.09567790001165122,
+      "trace_ids": "84829920",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "run 1 stops at H1",
+          "ok": true,
+          "detail": "H1 SUPPLIER_CONFIRMATION_REQUIRED"
+        },
+        {
+          "name": "one preference stored, naming OFFICER-1, with a time",
+          "ok": true,
+          "detail": "[{'item_id': 'INV-001', 'supplier_id': 'SUP-01', 'confirmed_by': 'OFFICER-1', 'confirmed_at': '2026-10-23T02:06:06.317087+00:00'}]"
+        },
+        {
+          "name": "write with confirmed=False refused",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "refused write left no row",
+          "ok": true,
+          "detail": "1 rows"
+        }
+      ]
+    },
+    {
+      "sid": "X04",
+      "category": "Additional coverage",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "S5 ITEM_NOT_FOUND",
+      "tools": "",
+      "latency_s": 0.010463900049217045,
+      "trace_ids": "f2b4b833",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "stops at S5 ITEM_NOT_FOUND",
+          "ok": true,
+          "detail": "S5 ITEM_NOT_FOUND"
+        },
+        {
+          "name": "0 tool calls",
+          "ok": true,
+          "detail": "0"
+        }
+      ]
+    },
+    {
+      "sid": "X08",
+      "category": "Additional coverage",
+      "path": "Workflow",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 0.041996699990704656,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "submission refused while blocking flags remain",
+          "ok": true,
+          "detail": "DRAFT"
+        },
+        {
+          "name": "case remains DRAFT",
+          "ok": true,
+          "detail": "DRAFT"
+        }
+      ]
+    },
+    {
+      "sid": "X09",
+      "category": "Additional coverage",
+      "path": "Workflow",
+      "verdict": "PASS",
+      "stop": "",
+      "tools": "",
+      "latency_s": 0.054431499913334846,
+      "trace_ids": "",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "clean draft moves to PENDING_APPROVAL",
+          "ok": true,
+          "detail": "PENDING_APPROVAL"
+        },
+        {
+          "name": "submission event records actor and timestamp",
+          "ok": true,
+          "detail": "{'previous_state': 'DRAFT', 'state': 'PENDING_APPROVAL', 'actor_id': 'OFFICER-1', 'reason': None, 'occurred_at': '2026-10-23T02:06:06.628925+00:00'}"
+        }
+      ]
+    },
+    {
+      "sid": "X10",
+      "category": "Additional coverage",
+      "path": "Agent",
+      "verdict": "PASS",
+      "stop": "S4 POLICY_BLOCKING_FLAGS",
+      "tools": "check_reorder_levels > lookup_policy > lookup_policy > compare_quotations",
+      "latency_s": 0.06160779995843768,
+      "trace_ids": "f5056de4",
+      "failed": [],
+      "violations": [],
+      "notes": [],
+      "sequence_ok": null,
+      "checks": [
+        {
+          "name": "QUO-1005 flagged as expired or invalid",
+          "ok": true,
+          "detail": "EXPIRED_OR_INVALID_QUOTATION:QUO-1005; MINIMUM_VALID_QUOTATIONS_NOT_MET:required=3:found=2"
+        },
+        {
+          "name": "minimum valid quotations not met",
+          "ok": true,
+          "detail": "EXPIRED_OR_INVALID_QUOTATION:QUO-1005; MINIMUM_VALID_QUOTATIONS_NOT_MET:required=3:found=2"
+        },
+        {
+          "name": "QUO-1005 not ranked",
+          "ok": true,
+          "detail": "QUO-1006, QUO-1007"
+        },
+        {
+          "name": "stops at S4",
+          "ok": true,
+          "detail": "S4 POLICY_BLOCKING_FLAGS"
+        },
+        {
+          "name": "no draft",
+          "ok": true,
+          "detail": "None"
+        }
+      ]
+    }
+  ]
+}
