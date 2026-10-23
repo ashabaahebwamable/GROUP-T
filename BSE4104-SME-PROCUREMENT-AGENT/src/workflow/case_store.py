@@ -300,6 +300,10 @@ class CaseStore:
                 decided_at=row["decided_at"],
                 decision_reason=row["decision_reason"],
             )
+            if requisition.decided_by is not None:
+                requisition.decided_by = str(requisition.decided_by).strip() or None
+            if requisition.decision_reason is not None:
+                requisition.decision_reason = str(requisition.decision_reason).strip() or None
             if action == "start_draft":
                 start_draft(requisition)
             elif action == "submit":
