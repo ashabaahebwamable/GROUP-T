@@ -35,7 +35,7 @@ from src.agent.tools_router import dispatch_tool
 from src.memory import record_supplier_preference
 from src.observability import DEFAULT_TRACE_PATH, write_trace
 from src.tools import procurement
-from src.validation import validate_quantity
+from src.validation import QuantityValidationError, validate_quantity
 
 
 load_dotenv()
@@ -661,6 +661,22 @@ def run_agent_step(
 # Bounded orchestration loop
 # ---------------------------------------------------------------------------
 
+def _quantity_error(state: dict[str, Any]) -> str | None:
+    """Return the reason a supplied quantity is invalid, or None.
+
+    A missing quantity (None) is not an error here: the planner already stops
+    with a quantity-confirmation hand-off for that case.
+    """
+    quantity = state.get("quantity")
+    if quantity is None:
+        return None
+    try:
+        validate_quantity(quantity)
+    except QuantityValidationError as exc:
+        return str(exc)
+    return None
+
+
 def _run_agent_impl(
     *,
     item_id: str | None = None,
@@ -756,13 +772,35 @@ def _run_agent_impl(
         state = _resumable_state(state)
 
     tool_events: list[dict[str, Any]] = []
-    result = _run_loop(
-        state,
-        planner=planner,
-        max_steps=max_steps,
-        max_tool_retries=max_tool_retries,
-        tool_events=tool_events,
-    )
+
+    # Guardrail (US-02 AC3, AI boundary matrix rows 1 and 15): validate any
+    # supplied quantity before the planner can make a tool call, including on
+    # resumed cases. None still follows the existing confirmation flow.
+    quantity_error = _quantity_error(state)
+    if quantity_error is not None:
+        state["stop_reason"] = "INVALID_QUANTITY"
+        state["outstanding"] = (
+            f"Provide a valid quantity for the requisition. {quantity_error}"
+        )
+        result = {
+            "status": "handoff",
+            "reason": "INVALID_QUANTITY",
+            "message": (
+                f"The requested quantity is not valid ({quantity_error}). "
+                "No tools were called; please enter a quantity greater than zero."
+            ),
+            "outstanding": state["outstanding"],
+            "state": state,
+            "trace": [],
+        }
+    else:
+        result = _run_loop(
+            state,
+            planner=planner,
+            max_steps=max_steps,
+            max_tool_retries=max_tool_retries,
+            tool_events=tool_events,
+        )
 
     result["run_id"] = str(uuid.uuid4())
     result["contract_code"] = contract_code(result.get("reason"))
@@ -808,9 +846,8 @@ def run_agent(
     path = observability_path or DEFAULT_TRACE_PATH
 
     try:
-        # Reject invalid new quantities before item lookup or agent/model calls.
-        if state is None and quantity_base is not None:
-            quantity_base = validate_quantity(quantity_base)
+        # Quantity validation and safe handoff are handled inside
+        # _run_agent_impl for both new and resumed cases.
 
         result = _run_agent_impl(
             item_id=item_id,

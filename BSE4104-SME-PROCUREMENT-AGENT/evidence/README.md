@@ -11,7 +11,7 @@ Every weekly report links to items listed here. Update this file whenever eviden
 | 4 | `screenshots/week4/` | `traces/week4/` | `demo/week4/` | — | Done (PR #3, #4, merged) |
 | 5 | `screenshots/week5/` | `traces/week5/` (5 traces, regenerated 12 Oct) | `demo/week5/w5-demo.mp4` (PR #8) and `w5-demo-transcript.txt` | `docs/architecture/agent-task-contract.md` | Done (PR #5, merged); report `docs/weekly-reports/week5-progress-report.md`. Screenshots predate the 12 Oct changes |
 | 6 | `screenshots/week6/` | — | `demo/week6/w6-06-restart-resume-and-preference-flow.mp4` | `docs/architecture/memory-design-note.md`, `mcp-interface-spec.md`, `state-model.md` | Done (PR #6, merged); report `docs/weekly-reports/week6-progress-report.md` |
-| 7 | `screenshots/week7/` | `traces/week7/` (5 structured request traces) | — | — | Traces generated |
+| 7 | `screenshots/week7/` | `traces/week7/` (5 structured request traces); evaluation run `eval/20261023T020535Z/` | — | `docs/evaluation/` (scenarios, criteria, results, guardrails, failure catalogue) | Mostly done: 26 of 40 scenarios run; Gemini-backed scenarios and reviewer verdicts outstanding; report `docs/weekly-reports/week7-progress-report.md` |
 | 8 | `screenshots/week8/` | — | — | — | Not started |
 
 See `traces/README.md` for a cross-week index of RAG and agent execution traces.
