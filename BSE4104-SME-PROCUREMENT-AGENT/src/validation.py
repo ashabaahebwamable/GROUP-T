@@ -2,11 +2,12 @@
 Deterministic input validation.
 
 Per the AI Boundary Matrix (Row 1, Row 15) and US-02: quantity values must be
-validated by code BEFORE any model call is made. A zero, negative, or
-non-numeric quantity must be rejected here, not silently passed to the model
-or defaulted.
+validated by code BEFORE any model call is made. A zero, negative, non-finite,
+or non-numeric quantity must be rejected here, not silently passed to the
+model or defaulted.
 """
 
+import math
 from typing import Any
 
 
@@ -17,7 +18,13 @@ class QuantityValidationError(ValueError):
     def __init__(self, reason: str, value: Any):
         self.reason = reason
         self.value = value
-        super().__init__(f"{reason}: {value!r}")
+        try:
+            value_text = repr(value)
+        except (OverflowError, ValueError):
+            value_text = f"<{type(value).__name__}>"
+        if len(value_text) > 200:
+            value_text = f"{value_text[:197]}..."
+        super().__init__(f"{reason}: {value_text}")
 
 
 def validate_quantity(value: Any) -> float:
@@ -26,7 +33,7 @@ def validate_quantity(value: Any) -> float:
 
     Returns the quantity as a float if valid.
     Raises QuantityValidationError if the value is missing, non-numeric,
-    zero, or negative.
+    zero, negative, or non-finite.
 
     This function must be called before any model-backed extraction or
     comparison step touches the quantity field (AI Boundary Matrix Row 1:
@@ -47,15 +54,18 @@ def validate_quantity(value: Any) -> float:
             raise QuantityValidationError("Quantity is empty", value)
         try:
             number = float(text)
-        except ValueError:
-            raise QuantityValidationError("Quantity is not numeric", value)
+        except (OverflowError, ValueError):
+            raise QuantityValidationError("Quantity is not numeric", value) from None
     elif isinstance(value, (int, float)):
-        number = float(value)
+        try:
+            number = float(value)
+        except OverflowError:
+            raise QuantityValidationError("Quantity is not finite", value) from None
     else:
         raise QuantityValidationError("Quantity is not numeric", value)
 
-    if number != number:  # NaN check
-        raise QuantityValidationError("Quantity is not numeric", value)
+    if not math.isfinite(number):
+        raise QuantityValidationError("Quantity is not finite", value)
 
     if number == 0:
         raise QuantityValidationError("Quantity must not be zero", value)
