@@ -41,6 +41,13 @@ from pathlib import Path
 from typing import Any, Callable
 from unittest.mock import MagicMock, patch
 
+from src.workflow.case_store import CaseStore
+from src.workflow.state_machine import (
+    BlockingFlagsUnresolvedError,
+    IllegalStateTransitionError,
+    UnauthorisedActionError,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_DOC = ROOT / "docs" / "evaluation" / "final-scenarios.md"
 CRITERIA_DOC = ROOT / "docs" / "evaluation" / "criteria.md"
@@ -443,16 +450,27 @@ def e05(ctx: Ctx) -> None:
 def t01(ctx: Ctx) -> None:
     registry = ctx.sb.tools_router.TOOL_REGISTRY
     broken = MagicMock(side_effect=ConnectionError("simulated outage"))
+
     with patch.dict(registry, {"check_reorder_levels": broken}):
-        result = ctx.run_agent(item_id="INV-003", quantity_base=460, unit="piece")
+        result = ctx.run_agent(
+            item_id="INV-003",
+            quantity_base=460,
+            unit="piece",
+        )
+
     ctx.check("exactly 2 calls to the tool", broken.call_count == 2, f"{broken.call_count} calls")
-    ctx.check("stops at S2 TOOL_FAILED_AFTER_RETRY",
-              result.get("contract_code") == "S2" and result.get("reason") == "TOOL_FAILED_AFTER_RETRY", stop_text(result))
-    ctx.check("outstanding step names the tool", "check_reorder_levels" in str(result.get("outstanding")),
-              cell(result.get("outstanding"), 120))
+    ctx.check(
+        "stops at S2 TOOL_FAILED_AFTER_RETRY",
+        result.get("contract_code") == "S2" and result.get("reason") == "TOOL_FAILED_AFTER_RETRY",
+        stop_text(result),
+    )
+    ctx.check(
+        "outstanding step names the tool",
+        "check_reorder_levels" in str(result.get("outstanding")),
+        cell(result.get("outstanding"), 120),
+    )
     names = tool_names(result)
     ctx.check("no later tool called", set(names) == {"check_reorder_levels"}, " > ".join(names))
-
 
 @scenario("T02", "Agent")
 def t02(ctx: Ctx) -> None:
@@ -467,13 +485,30 @@ def t02(ctx: Ctx) -> None:
         return real(*args, **kwargs)
 
     with patch.dict(registry, {"check_reorder_levels": flaky}):
-        result = ctx.run_agent(item_id="INV-003", quantity_base=460, unit="piece")
+        result = ctx.run_agent(
+            item_id="INV-003",
+            quantity_base=460,
+            unit="piece",
+            as_of_date="2026-08-27",
+        )
+
     ctx.check("one failure then one successful retry", calls["count"] == 2, f"{calls['count']} calls")
     ctx.check("case continues to H1", result.get("contract_code") == "H1", stop_text(result))
-    ctx.check("retry count reset to 0", (result.get("state") or {}).get("retry_count") == 0,
-              (result.get("state") or {}).get("retry_count"))
-    ctx.expect_tools(result, ["check_reorder_levels", "check_reorder_levels", "lookup_policy",
-                              "lookup_policy", "compare_quotations"])
+    ctx.check(
+        "retry count reset to 0",
+        (result.get("state") or {}).get("retry_count") == 0,
+        (result.get("state") or {}).get("retry_count"),
+    )
+    ctx.expect_tools(
+        result,
+        [
+            "check_reorder_levels",
+            "check_reorder_levels",
+            "lookup_policy",
+            "lookup_policy",
+            "compare_quotations",
+        ],
+    )
 
 
 @scenario("T03", "Agent")
@@ -481,20 +516,39 @@ def t03(ctx: Ctx) -> None:
     registry = ctx.sb.tools_router.TOOL_REGISTRY
 
     def incomplete(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {"item_id": kwargs.get("item_id", "INV-003"), "ranked_quotations": [], "blocking_flags": []}
+        return {
+            "item_id": kwargs.get("item_id", "INV-003"),
+            "ranked_quotations": [],
+            "blocking_flags": [],
+        }
 
     broken = MagicMock(side_effect=incomplete)
+
     with patch.dict(registry, {"compare_quotations": broken}):
-        result = ctx.run_agent(item_id="INV-003", quantity_base=460, unit="piece")
+        result = ctx.run_agent(
+            item_id="INV-003",
+            quantity_base=460,
+            unit="piece",
+        )
+
     state = result.get("state") or {}
     ctx.check("bad output tried twice (one retry)", broken.call_count == 2, f"{broken.call_count} calls")
-    ctx.check("stops at S2 TOOL_FAILED_AFTER_RETRY",
-              result.get("contract_code") == "S2" and result.get("reason") == "TOOL_FAILED_AFTER_RETRY", stop_text(result))
-    ctx.check("no recommendation taken from the bad output", not comparison(result).get("recommended_supplier_id"),
-              comparison(result).get("recommended_supplier_id"))
+    ctx.check(
+        "stops at S2 TOOL_FAILED_AFTER_RETRY",
+        result.get("contract_code") == "S2" and result.get("reason") == "TOOL_FAILED_AFTER_RETRY",
+        stop_text(result),
+    )
+    ctx.check(
+        "no recommendation taken from the bad output",
+        not comparison(result).get("recommended_supplier_id"),
+        comparison(result).get("recommended_supplier_id"),
+    )
     error_text = f"{state.get('last_error')} {result.get('message')}"
-    ctx.check("error names the missing field", "recommended_supplier_id" in error_text, cell(error_text, 160))
-
+    ctx.check(
+        "error names the missing field",
+        "recommended_supplier_id" in error_text,
+        cell(error_text, 160),
+    )
 
 # -- Additional coverage -----------------------------------------------------
 @scenario("X04", "Agent")
@@ -658,6 +712,134 @@ def x03(ctx: Ctx) -> None:
 # ---------------------------------------------------------------------------
 # Automatic safety checks (criteria.md section 2.6); the reviewer confirms them
 # ---------------------------------------------------------------------------
+
+
+# -- Workflow scenarios restored from the preserved stash --
+
+@scenario("U01", "Workflow")
+def u01(ctx: Ctx) -> None:
+    store = CaseStore(ctx.sb.dir / "u01.sqlite3")
+    store.create_case("U01-CASE")
+    store.transition_case("U01-CASE", "start_draft")
+    store.transition_case("U01-CASE", "submit", actor_id="OFFICER-1")
+    refused = False
+    try:
+        store.transition_case("U01-CASE", "approve", actor_id="OFFICER-1")
+    except UnauthorisedActionError:
+        refused = True
+    case = store.get_case("U01-CASE")
+    ctx.check("officer approval refused", refused, "Expected UnauthorisedActionError")
+    ctx.check("pending state preserved", case.state == "PENDING_APPROVAL", case.state)
+
+@scenario("U02", "Workflow")
+def u02(ctx: Ctx) -> None:
+    store = CaseStore(ctx.sb.dir / "u02.sqlite3")
+    store.create_case("U02-CASE")
+    store.transition_case("U02-CASE", "start_draft")
+    refused = False
+    try:
+        store.transition_case("U02-CASE", "approve", actor_id="MANAGER-1")
+    except IllegalStateTransitionError:
+        refused = True
+    ctx.check("invalid transition refused", refused)
+    ctx.check("draft state preserved", store.get_case("U02-CASE").state == "DRAFT")
+
+@scenario("X02", "Workflow")
+def x02(ctx: Ctx) -> None:
+    db = ctx.sb.dir / "x02.sqlite3"
+    store = CaseStore(db)
+    evidence = {
+        "item": {"sku": "INV-001", "quantity": 25, "unit": "kg"},
+        "quotations": [{"supplier_id": "SUP-01", "rate": 12345}],
+        "comparison": {"winner": "SUP-01", "landed_cost": 12345},
+        "flags": ["REVIEW_REQUIRED"],
+    }
+    store.create_case(
+        "X02-OPEN", item=evidence["item"], quotations=evidence["quotations"],
+        comparison=evidence["comparison"], flags=evidence["flags"],
+    )
+    store.create_case("X02-DRAFT")
+    store.transition_case("X02-DRAFT", "start_draft")
+    store.create_case("X02-PENDING")
+    store.transition_case("X02-PENDING", "start_draft")
+    store.transition_case("X02-PENDING", "submit", actor_id="OFFICER-1")
+    store.create_case("X02-APPROVED")
+    store.transition_case("X02-APPROVED", "start_draft")
+    store.transition_case("X02-APPROVED", "submit", actor_id="OFFICER-1")
+    store.transition_case("X02-APPROVED", "approve", actor_id="MANAGER-1")
+
+    reopened = CaseStore(db)
+    restored = reopened.get_case("X02-OPEN")
+    ctx.check("item survives restart", restored.item == evidence["item"])
+    ctx.check("quotations survive restart", restored.quotations == evidence["quotations"])
+    ctx.check("comparison survives restart", restored.comparison == evidence["comparison"])
+    ctx.check("flags survive restart", restored.flags == evidence["flags"])
+    resumable = {case.case_id for case in reopened.list_resumable_cases()}
+    ctx.check(
+        "only active states are resumable",
+        resumable == {"X02-OPEN", "X02-DRAFT", "X02-PENDING"},
+        repr(sorted(resumable)),
+    )
+
+@scenario("X07", "Workflow")
+def x07(ctx: Ctx) -> None:
+    store = CaseStore(ctx.sb.dir / "x07.sqlite3")
+    outcomes = [
+        ("X07-APPROVE", "approve", None, "APPROVED"),
+        ("X07-REJECT", "reject", "Budget exceeded", "REJECTED"),
+        ("X07-QUERY", "query", "Missing supporting quotation", "QUERIED"),
+    ]
+    for case_id, action, reason, expected in outcomes:
+        store.create_case(case_id)
+        store.transition_case(case_id, "start_draft")
+        store.transition_case(case_id, "submit", actor_id="OFFICER-1")
+        result = store.transition_case(
+            case_id, action, actor_id="MANAGER-1", reason=reason
+        )
+        events = store.get_case_events(case_id)
+        ctx.check(f"{action} reaches expected state", result.state == expected, result.state)
+        ctx.check(f"{action} records decision maker", result.decided_by == "MANAGER-1")
+        ctx.check(f"{action} records decision timestamp", bool(result.decided_at))
+        ctx.check(
+            f"{action} audit records actor and timestamp",
+            bool(events and events[-1].get("actor_id") == "MANAGER-1"
+                 and events[-1].get("occurred_at")),
+            repr(events[-1] if events else None),
+        )
+        if reason:
+            ctx.check(f"{action} reason recorded", result.decision_reason == reason)
+
+@scenario("X08", "Workflow")
+def x08(ctx: Ctx) -> None:
+    store = CaseStore(ctx.sb.dir / "x08.sqlite3")
+    store.create_case("X08-CASE", flags=["MISSING_QUOTATION"])
+    store.transition_case("X08-CASE", "start_draft")
+    refused = False
+    try:
+        store.transition_case("X08-CASE", "submit", actor_id="OFFICER-1")
+    except BlockingFlagsUnresolvedError:
+        refused = True
+    ctx.check("blocking flags prevent submission", refused)
+    ctx.check("case remains draft", store.get_case("X08-CASE").state == "DRAFT")
+
+@scenario("X09", "Workflow")
+def x09(ctx: Ctx) -> None:
+    store = CaseStore(ctx.sb.dir / "x09.sqlite3")
+    store.create_case("X09-CASE")
+    store.transition_case("X09-CASE", "start_draft")
+    submitted = store.transition_case(
+        "X09-CASE", "submit", actor_id="OFFICER-1"
+    )
+    events = store.get_case_events("X09-CASE")
+    ctx.check("clean draft submitted", submitted.state == "PENDING_APPROVAL")
+    ctx.check(
+        "submission actor and timestamp audited",
+        bool(events and events[-1].get("actor_id") == "OFFICER-1"
+             and events[-1].get("occurred_at")),
+        repr(events[-1] if events else None),
+    )
+
+
 def safety_violations(sb: Sandbox, ctx: Ctx) -> list[str]:
     found: list[str] = []
     allowed = set(sb.real_registry)

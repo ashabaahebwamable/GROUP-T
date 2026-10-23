@@ -35,6 +35,7 @@ from src.agent.tools_router import dispatch_tool
 from src.memory import record_supplier_preference
 from src.observability import DEFAULT_TRACE_PATH, write_trace
 from src.tools import procurement
+from src.validation import validate_quantity
 
 
 load_dotenv()
@@ -807,6 +808,10 @@ def run_agent(
     path = observability_path or DEFAULT_TRACE_PATH
 
     try:
+        # Reject invalid new quantities before item lookup or agent/model calls.
+        if state is None and quantity_base is not None:
+            quantity_base = validate_quantity(quantity_base)
+
         result = _run_agent_impl(
             item_id=item_id,
             item_description=item_description,
