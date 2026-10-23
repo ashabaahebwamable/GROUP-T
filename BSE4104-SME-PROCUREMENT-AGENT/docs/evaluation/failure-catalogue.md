@@ -82,3 +82,11 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 ## Failures from this evaluation run
 
 **TO FILL** after the full run: add one entry per FAIL in `final-results.md` (symptom, root cause, fix, PR, re-test). Expected candidates: any model-backed scenario that invents a figure, and any scenario whose runner result Ashley overrides on review.
+
+### T02 — Retry succeeds, but policy blocks continuation
+
+**Observed result:** FAIL. The tool failed once, was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1.
+
+**Investigation:** The scenario uses the evaluation date `2026-09-01`. The quotation involved may have expired on that date, which could explain the policy block.
+
+**Disposition:** Keep T02 as a failure pending review of the scenario's date, quotation validity, and expected outcome. Do not mark it as passed or change the expected result merely to achieve a higher pass rate.
