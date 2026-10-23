@@ -28,6 +28,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 
+def _normalise_flags(flags: list[str] | tuple[str, ...] | None) -> list[str]:
+    """Return a clean list of non-empty string flags, preserving order."""
+    cleaned: list[str] = []
+    for flag in flags or []:
+        if flag is None:
+            continue
+        text = str(flag).strip()
+        if text:
+            cleaned.append(text)
+    return cleaned
+
+
 VALID_STATES = {
     "OPEN",
     "DRAFT",
@@ -95,6 +107,13 @@ class Requisition:
     decision_reason: str | None = None
 
     def __post_init__(self) -> None:
+        self.state = str(self.state).strip()
+        self.policy_flags = _normalise_flags(self.policy_flags)
+        self.created_by = (str(self.created_by).strip() if self.created_by is not None else None) or None
+        self.decided_by = (str(self.decided_by).strip() if self.decided_by is not None else None) or None
+        self.decision_reason = (
+            str(self.decision_reason).strip() if self.decision_reason is not None else None
+        ) or None
         if self.state not in VALID_STATES:
             raise ValueError(f"Unknown state: {self.state!r}")
 
@@ -161,8 +180,9 @@ def approve(
     _check_approver(requisition, approver_id, approver_role)
 
     requisition.state = "APPROVED"
-    requisition.decided_by = approver_id
+    requisition.decided_by = str(approver_id).strip()
     requisition.decided_at = _now_iso()
+    requisition.decision_reason = None
     return requisition
 
 
@@ -187,9 +207,9 @@ def reject(
     _check_approver(requisition, approver_id, approver_role)
 
     requisition.state = "REJECTED"
-    requisition.decided_by = approver_id
+    requisition.decided_by = str(approver_id).strip()
     requisition.decided_at = _now_iso()
-    requisition.decision_reason = reason
+    requisition.decision_reason = str(reason).strip()
     return requisition
 
 
@@ -214,9 +234,9 @@ def query(
     _check_approver(requisition, approver_id, approver_role)
 
     requisition.state = "QUERIED"
-    requisition.decided_by = approver_id
+    requisition.decided_by = str(approver_id).strip()
     requisition.decided_at = _now_iso()
-    requisition.decision_reason = reason
+    requisition.decision_reason = str(reason).strip()
     return requisition
 
 
@@ -231,8 +251,9 @@ def halt(requisition: Requisition, *, reason: str) -> Requisition:
         raise ValueError("halt() requires a non-empty reason.")
 
     requisition.state = "HALTED"
+    requisition.decided_by = None
     requisition.decided_at = _now_iso()
-    requisition.decision_reason = reason
+    requisition.decision_reason = str(reason).strip()
     return requisition
 
 
