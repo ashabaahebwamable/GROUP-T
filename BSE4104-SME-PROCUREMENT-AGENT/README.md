@@ -4,7 +4,7 @@
 Makerere University · College of Computing and Information Sciences · Department of Networks
 Course convener: Dr Kamulegeya Grace B (PhD)
 
-Group: **Pending group confirmation** · Members: **Azibo Isaac Alinda plus team members to be confirmed** · Academic year 2026/2027
+Group: **GROUP T** · Members: Azibo Isaac Alinda, Tendo Caisey, Akisa Maria Ashley, Ashaba Aheebwa Mable, Wakinya Esau John · Academic year 2026/2027
 
 ---
 
@@ -66,9 +66,49 @@ evidence/
 .env.example                               placeholder configuration — never contains real keys
 ```
 
-## Configuration and secrets
+## Setup and reproducible runs
 
-Copy `.env.example` to `.env` and fill in your own values. `.env` is excluded by `.gitignore` and **must never be committed**. No key, token or password belongs in this repository, in any file, at any time.
+### Requirements
+
+- Python **3.12 or newer** (CI uses 3.12; the tests also pass on 3.13).
+- Git, for cloning the repository.
+- Internet access for the first installation and first retrieval run: `sentence-transformers` downloads the local embedding model when needed. Retrieval runs locally after that. Model-backed features additionally require a Gemini API key.
+
+ Clone the repository and move into the project folder, then create and activate a virtual environment and install the dependencies:
+
+```powershell
+   git clone https://github.com/ashabaahebwamable/GROUP-T.git
+   cd GROUP-T\BSE4104-SME-PROCUREMENT-AGENT
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install --upgrade pip
+   python -m pip install -r requirements.txt
+```
+
+If PowerShell blocks activation, either allow scripts for the current terminal according to your organization's policy, or call the environment's interpreter directly as `.\.venv\Scripts\python.exe` in the commands below. On macOS/Linux, use `python3 -m venv .venv`, `source .venv/bin/activate`, and then the same `python -m pip ...` commands.
+
+### Run the deterministic demo
+
+```powershell
+python -m scripts.demo_week5
+```
+
+This follows the reference cement case through the officer confirmation and draft hand-off. By default, writes go to a temporary directory and are discarded. It does not call Gemini, but the first run may download the local embedding model. Do **not** use `--persist` for a rehearsal unless you intend to modify local data and evidence files.
+The first run can look frozen for about two minutes while the embedding model loads. Don't press anything. Once the model has been downloaded, you can set `$env:HF_HUB_OFFLINE = "1"` before running to stop network retry messages. Don't set it on a first run, because it blocks the download.
+
+### Run tests and check evaluation wiring
+
+```powershell
+python -m pytest tests/ -v
+python -m src.eval.run --check
+```
+
+The test dependencies, including `pytest`, are listed in `requirements.txt`. CI installs `pytest` separately as well; this is redundant but ensures its test command is available. The evaluation check verifies the scenario document against the runner; it does not execute the evaluation.
+
+The full evaluation is deliberately gated: both owners must sign `docs/evaluation/criteria.md` section 6 before it is run. That agreement was recorded on 19 and 21 October 2026, before the recorded full run. To repeat the run, use `python -m src.eval.run`; model-backed scenarios need `MODEL_API_KEY`, internet access and available Gemini quota, and the batching rules are in section 4 of that document. Check `python -m src.eval.run --help` for the supported options. Evaluation results and traces are evidence; review them before treating automated outcomes as final.
+### Model configuration and secrets
+
+The tests and deterministic demo do not need a Gemini API key. To run a model-backed script locally, copy `.env.example` to `.env` and set `MODEL_API_KEY` (and, if needed, `MODEL_NAME` and `MODEL_PROVIDER`) to values you obtained yourself. `.env` is excluded by `.gitignore` and **must never be committed**. No key, token or password belongs in this repository, in any file, at any time. Never put credentials in a command, screenshot, log or evidence artifact.
 
 ## Project timeline
 
@@ -76,12 +116,12 @@ Copy `.env.example` to `.env` and fill in your own values. `.env` is excluded by
 | ---- | ------------------------------------------ | ----------- |
 | 1    | Problem framing and AI-native requirements | Complete    |
 | 2    | Foundation-model engineering and prompting | Complete    |
-| 3    | Context engineering and RAG                | Not started |
-| 4    | Tools and function calling                 | Not started |
-| 5    | Agent architecture and bounded autonomy    | Not started |
-| 6    | Memory, state and interoperability         | Not started |
-| 7    | Evaluation, observability and guardrails   | Not started |
-| 8    | Hardening and final release                | Not started |
+| 3    | Context engineering and RAG                | Complete    |
+| 4    | Tools and function calling                 | Complete    |
+| 5    | Agent architecture and bounded autonomy    | Complete    |
+| 6    | Memory, state and interoperability         | Complete    |
+| 7    | Evaluation, observability and guardrails   | In progress |
+| 8    | Hardening and final release                | In progress |
 
 ## AI use declaration
 
