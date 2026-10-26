@@ -444,7 +444,11 @@ def t01(ctx: Ctx) -> None:
     registry = ctx.sb.tools_router.TOOL_REGISTRY
     broken = MagicMock(side_effect=ConnectionError("simulated outage"))
     with patch.dict(registry, {"check_reorder_levels": broken}):
-        result = ctx.run_agent(item_id="INV-003", quantity_base=460, unit="piece")
+        result = ctx.run_agent(
+            item_id="INV-003",
+            quantity_base=460,
+            unit="piece",
+         )
     ctx.check("exactly 2 calls to the tool", broken.call_count == 2, f"{broken.call_count} calls")
     ctx.check("stops at S2 TOOL_FAILED_AFTER_RETRY",
               result.get("contract_code") == "S2" and result.get("reason") == "TOOL_FAILED_AFTER_RETRY", stop_text(result))
@@ -467,7 +471,12 @@ def t02(ctx: Ctx) -> None:
         return real(*args, **kwargs)
 
     with patch.dict(registry, {"check_reorder_levels": flaky}):
-        result = ctx.run_agent(item_id="INV-003", quantity_base=460, unit="piece")
+        result = ctx.run_agent(
+            item_id="INV-003",
+            quantity_base=460,
+            unit="piece",
+            as_of_date="2026-08-27",
+        )
     ctx.check("one failure then one successful retry", calls["count"] == 2, f"{calls['count']} calls")
     ctx.check("case continues to H1", result.get("contract_code") == "H1", stop_text(result))
     ctx.check("retry count reset to 0", (result.get("state") or {}).get("retry_count") == 0,

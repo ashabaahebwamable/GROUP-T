@@ -69,7 +69,7 @@ Common settings for every agent scenario: preparing officer `OFFICER-1`; `as_of_
 | ID | Input | Expected outcome | Pass criteria | US | Path |
 |---|---|---|---|---|---|
 | T01 | INV-003 case with `check_reorder_levels` replaced by a mock that always raises `ConnectionError` | One attempt, one retry, then S2 hand-off naming the tool; state preserved | Exactly 2 calls to the tool; stop `TOOL_FAILED_AFTER_RETRY` (S2); outstanding step names the tool; no later tool called | US-11 AC2 | Agent |
-| T02 | Same, but the tool fails once and then works | The retry succeeds and the case continues to H1 | One failure, one successful retry, then H1; retry count reset to 0 | US-11 AC2 | Agent |
+| T02 | Same as the retry scenario for INV-003 (460 pieces), with `as_of_date="2026-08-27"`, but the `check_reorder_levels` tool fails once and then succeeds on retry. | The retry succeeds and the case continues to H1 because the quotation-validity conditions are evaluated as of 2026-08-27. | Exactly one tool failure followed by one successful retry; the case reaches H1; `retry_count` resets to 0; the expected tool-call sequence is preserved. | US-11 AC2 | Agent |
 | T03 | `compare_quotations` replaced by a mock that returns a result missing `recommended_supplier_id` | Output rejected as `TOOL_OUTPUT_INVALID`, retried once, then S2 | No recommendation used from the bad output; error names the missing field; stop S2 | US-03 AC3, US-11 AC2 | Agent |
 
 ## Unauthorized action (3)
