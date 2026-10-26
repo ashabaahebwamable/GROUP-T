@@ -119,4 +119,4 @@ The thresholds above are agreed before the first run.
 
 | Date | Change | Reason | Agreed by |
 |---|---|---|---|
-| | | | |
+| 2026-10-26 | T02 uses `as_of_date="2026-08-27"` instead of the runner's default date. Pass thresholds remain unchanged. | T02 tests retry recovery, but its previous default date of `2026-09-01` made QUO-1005 expired and caused a policy block at S4. The corrected date aligns with N02 and isolates the retry behavior. | Tendo Caisey; Ashley review requested |
