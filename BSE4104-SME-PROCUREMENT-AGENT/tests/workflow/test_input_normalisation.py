@@ -11,6 +11,7 @@ Owner: Akisa Maria Ashley (tests and security). Code under test: Isaac Alinda.
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from src.workflow.case_store import CaseStore
@@ -127,7 +128,8 @@ class PreparerCannotDecideTests(unittest.TestCase):
 
 class CaseStoreNormalisationTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        # ignore_cleanup_errors: on Windows an open SQLite file cannot be deleted.
+        self.temp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.db = Path(self.temp.name) / "case.sqlite3"
         self.store = CaseStore(self.db)
 
@@ -159,11 +161,13 @@ class CaseStoreNormalisationTests(unittest.TestCase):
 
     def test_a_padded_stored_decider_is_cleaned_when_the_case_is_next_loaded(self):
         self.store.create_case("CASE-DB")
-        with sqlite3.connect(self.db) as conn:
+        # sqlite3's own "with" only commits; closing() also releases the file (needed on Windows).
+        with closing(sqlite3.connect(self.db)) as conn:
             conn.execute(
                 "UPDATE workflow_cases SET decided_by = ?, decision_reason = ? WHERE case_id = ?",
                 ("  MANAGER-1  ", "  earlier note  ", "CASE-DB"),
             )
+            conn.commit()
         case = self.store.transition_case("CASE-DB", "start_draft")
         self.assertEqual(case.decided_by, "MANAGER-1")
         self.assertEqual(case.decision_reason, "earlier note")
