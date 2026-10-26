@@ -18,6 +18,7 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 |FC-06|Retrieval|Structured lookups bypass the threshold (fixed score 1.0)|24 Sep (W3)|**Open** (still in code)|
 |FC-07|Agent loop / workflow|"Preparer may not approve" check skipped on the case-store path|12 Oct (W5 review)|Fixed, tested; [commit d9615ff](https://github.com/ashabaahebwamable/GROUP-T/commit/d9615ff1f4a643b06df9814db212902de186166a)|
 |FC-08|Model client|Immediate retries exhausted the daily Gemini quota|Sep (W3)|Fixed, tested; [commit 56d5bf0](https://github.com/ashabaahebwamable/GROUP-T/commit/56d5bf033e608e7fcbf32d5c54ff406e71bd05b1)|
+|FC-09|Evaluation scenario|T02: scenario date leaves INV-003 with two valid quotations, so the case cannot reach H1|25 Oct (final run)|**Open** (scenario defect confirmed; correction pending)|
 
 ## FC-01 Invalid quantity not rejected before tools run
 
@@ -81,12 +82,12 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 
 ## Failures from this evaluation run
 
-**TO FILL** after the full run: add one entry per FAIL in `final-results.md` (symptom, root cause, fix, PR, re-test). Expected candidates: any model-backed scenario that invents a figure, and any scenario whose runner result Ashley overrides on review.
+One entry per FAIL in `final-results.md`. The 14 scenarios not yet run may add more.
 
-### T02 — Retry succeeds, but policy blocks continuation
+### FC-09 (scenario T02): retry succeeds, but the scenario's date blocks continuation
 
-**Observed result:** FAIL. The tool failed once, was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1.
-
-**Investigation:** The scenario uses the evaluation date `2026-09-01`. The quotation involved may have expired on that date, which could explain the policy block.
-
-**Disposition:** Keep T02 as a failure pending review of the scenario's date, quotation validity, and expected outcome. Do not mark it as passed or change the expected result merely to achieve a higher pass rate.
+- **Symptom:** the tool failed once and was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1 (final run `20261023T020535Z`, trace `4808c040`).
+- **Root cause (verified 25 Oct):** the runner evaluates T02 at `as_of_date` 2026-09-01. At that date QUO-1005 (dated 2026-08-20, valid 7 days) has expired, so INV-003 has two valid quotations. `compare_quotations` returns `EXPIRED_OR_INVALID_QUOTATION:QUO-1005` and `MINIMUM_VALID_QUOTATIONS_NOT_MET:required=3:found=2`, so S4 is the correct outcome. Scenario X10 uses the same item and date and expects exactly this. At 2026-08-27 the same call has no blocking flags (scenario N02). The agent and the retry mechanism behaved correctly; the scenario's setup contradicts X10.
+- **Fix (proposed, not yet applied):** run T02 at `as_of_date` 2026-08-27 and record the change, with this reason, in `criteria.md` section 7. Do not change the expected result. **PR: TO FILL**
+- **Re-test:** T02 must reach H1 after one retry at 2026-08-27. **TO FILL**
+- **Status:** Open. The result stays FAIL until the corrected scenario has been re-run.
