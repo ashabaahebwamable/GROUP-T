@@ -846,6 +846,9 @@ def run_agent(
     path = observability_path or DEFAULT_TRACE_PATH
 
     try:
+        # Quantity validation and safe handoff are handled inside
+        # _run_agent_impl for both new and resumed cases.
+
         result = _run_agent_impl(
             item_id=item_id,
             item_description=item_description,

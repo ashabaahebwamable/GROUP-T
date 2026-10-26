@@ -719,6 +719,66 @@ def x02(ctx: Ctx) -> None:
     ctx.check("halted case is not resumable", "EVAL-X02-HALTED" not in resumable, resumable)
 
 
+@scenario("X07", "Workflow")
+def x07(ctx: Ctx) -> None:
+    from src.workflow.case_store import CaseStore
+
+    store = CaseStore(database_path=ctx.sb.dir / "cases-x07.sqlite3")
+    outcomes = [
+        ("EVAL-X07-APPROVE", "approve", None, "APPROVED"),
+        ("EVAL-X07-REJECT", "reject", "Budget exceeded", "REJECTED"),
+        ("EVAL-X07-QUERY", "query", "Missing supporting quotation", "QUERIED"),
+    ]
+
+    for case_id, action, reason, expected_state in outcomes:
+        store.create_case(
+            case_id,
+            item={"item_id": "INV-001"},
+            quotations=[],
+            comparison={},
+            flags=[],
+        )
+        store.transition_case(case_id, "start_draft", actor_id=OFFICER)
+        store.transition_case(case_id, "submit", actor_id=OFFICER)
+
+        result = store.transition_case(
+            case_id,
+            action,
+            actor_id="MANAGER-1",
+            reason=reason,
+        )
+        events = store.get_case_events(case_id)
+        event = events[-1] if events else {}
+
+        ctx.check(
+            f"{action} reaches {expected_state}",
+            result.state == expected_state,
+            result.state,
+        )
+        ctx.check(
+            f"{action} records decision maker",
+            result.decided_by == "MANAGER-1",
+            result.decided_by,
+        )
+        ctx.check(
+            f"{action} records decision timestamp",
+            bool(result.decided_at),
+            result.decided_at,
+        )
+        if reason:
+            ctx.check(
+                f"{action} records decision reason",
+                result.decision_reason == reason,
+                result.decision_reason,
+            )
+        ctx.check(
+            f"{action} audit records actor and timestamp",
+            event.get("actor_id") == "MANAGER-1"
+            and bool(event.get("occurred_at")),
+            repr(event),
+        )
+
+
 @scenario("X08", "Workflow")
 def x08(ctx: Ctx) -> None:
     from src.workflow.case_store import CaseStore
