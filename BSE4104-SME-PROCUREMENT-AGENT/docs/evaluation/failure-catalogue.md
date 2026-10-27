@@ -18,7 +18,8 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 |FC-06|Retrieval|Structured lookups bypass the threshold (fixed score 1.0)|24 Sep (W3)|**Open** (still in code)|
 |FC-07|Agent loop / workflow|"Preparer may not approve" check skipped on the case-store path|12 Oct (W5 review)|Fixed, tested; [commit d9615ff](https://github.com/ashabaahebwamable/GROUP-T/commit/d9615ff1f4a643b06df9814db212902de186166a)|
 |FC-08|Model client|Immediate retries exhausted the daily Gemini quota|Sep (W3)|Fixed, tested; [commit 56d5bf0](https://github.com/ashabaahebwamable/GROUP-T/commit/56d5bf033e608e7fcbf32d5c54ff406e71bd05b1)|
-|FC-09|Evaluation scenario|T02: scenario date leaves INV-003 with two valid quotations, so the case cannot reach H1|25 Oct (final run)|**Open** (scenario defect confirmed; correction pending)|
+|FC-09|Evaluation scenario|T02: scenario date leaves INV-003 with two valid quotations, so the case cannot reach H1|25 Oct (final run)|Fixed, re-tested on a dirty tree; [PR #27](https://github.com/ashabaahebwamable/GROUP-T/pull/27)|
+|FC-10|Workflow / authorisation|A submitter could approve their own case by padding their ID with spaces|27 Oct (D-05 test work)|Fixed, tested; [PR #28](https://github.com/ashabaahebwamable/GROUP-T/pull/28)|
 
 ## FC-01 Invalid quantity not rejected before tools run
 
@@ -82,12 +83,21 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 
 ## Failures from this evaluation run
 
-One entry per FAIL in `final-results.md`. The 14 scenarios not yet run may add more.
+One entry per failure found. The 13 scenarios not yet run on the committed runner may add more.
 
 ### FC-09 (scenario T02): retry succeeds, but the scenario's date blocks continuation
 
 - **Symptom:** the tool failed once and was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1 (final run `20261023T020535Z`, trace `4808c040`).
 - **Root cause (verified 25 Oct):** the runner evaluates T02 at `as_of_date` 2026-09-01. At that date QUO-1005 (dated 2026-08-20, valid 7 days) has expired, so INV-003 has two valid quotations. `compare_quotations` returns `EXPIRED_OR_INVALID_QUOTATION:QUO-1005` and `MINIMUM_VALID_QUOTATIONS_NOT_MET:required=3:found=2`, so S4 is the correct outcome. Scenario X10 uses the same item and date and expects exactly this. At 2026-08-27 the same call has no blocking flags (scenario N02). The agent and the retry mechanism behaved correctly; the scenario's setup contradicts X10.
-- **Fix (proposed, not yet applied):** run T02 at `as_of_date` 2026-08-27 and record the change, with this reason, in `criteria.md` section 7. Do not change the expected result. **PR: TO FILL**
-- **Re-test:** T02 must reach H1 after one retry at 2026-08-27. **TO FILL**
-- **Status:** Open. The result stays FAIL until the corrected scenario has been re-run.
+- **Fix:** T02 now runs at `as_of_date` 2026-08-27, recorded with this reason in `criteria.md` section 7 (26 Oct). The expected result is unchanged. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/27
+- **Re-test:** run `20261026T163427Z`: T02 PASS, with one simulated failure, one retry, then `H1 SUPPLIER_CONFIRMATION_REQUIRED` (27 of 27 automated scenarios passed). That run was made on a working tree that was not clean, so it must be repeated on a committed tree for the final record.
+- **Status:** Fixed. Open item: re-run on a clean tree.
+
+### FC-10 A submitter could approve their own case by padding their ID with spaces
+
+- **Symptom:** after submitting a case as `DIRECTOR-1`, approving it as `"DIRECTOR-1 "` or `" DIRECTOR-1"` was not refused, and the case became APPROVED. Reproduced on the case store (the production path) and on the state machine; lower-case variants also passed the state machine when the role was supplied (US-09, guardrail G7).
+- **Root cause:** `_check_approver` in `src/workflow/state_machine.py` compared `approver_id == requisition.created_by` on raw strings. The case store trims IDs for its role lookup, so a padded ID still received the approver role, and the owner check then failed to match. The gap existed before commit `d74db42`, which normalises stored values but not the comparison.
+- **Fix:** IDs are compared trimmed and case-insensitively (5 lines in `state_machine.py`). PR: https://github.com/ashabaahebwamable/GROUP-T/pull/28
+- **Re-test:** `tests/workflow/test_input_normalisation.py`, 15 tests. Padded and lower-case variants of the preparer's ID are refused for approve, reject and query, and a padded ID is refused on the case store; a different approver with spaces around their ID is still allowed and recorded without them. Before the fix the two bypass tests fail; after it all 15 pass. Full suite 209 passed; CI green on PR #28.
+- **Found by:** writing the tests that defect D-05 asked for. Mable merged the fix on 27 Oct.
+- **Status:** Fixed.
