@@ -83,10 +83,12 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 
 **TO FILL** after the full run: add one entry per FAIL in `final-results.md` (symptom, root cause, fix, PR, re-test). Expected candidates: any model-backed scenario that invents a figure, and any scenario whose runner result Ashley overrides on review.
 
-### T02 — Retry succeeds, but policy blocks continuation
+### FC-09 — T02 initially blocked by an expired quotation
 
-**Observed result:** FAIL. The tool failed once, was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1.
+**Initial observation:** T02 failed to reach H1. The simulated tool outage was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS`.
 
-**Investigation:** The scenario uses the evaluation date `2026-09-01`. The quotation involved may have expired on that date, which could explain the policy block.
+**Root cause:** T02 used the default evaluation date `2026-09-01`. On that date, QUO-1005 had expired, leaving too few valid quotations for INV-003. The resulting S4 stop was correct procurement-policy behavior, not a retry-recovery defect.
 
-**Disposition:** Keep T02 as a failure pending review of the scenario's date, quotation validity, and expected outcome. Do not mark it as passed or change the expected result merely to achieve a higher pass rate.
+**Correction:** T02 now explicitly uses `as_of_date="2026-08-27"`, matching N02 and isolating retry recovery. The rationale is recorded in `criteria.md` §7.
+
+**Retest:** PASS on 2026-10-27. `python -m src.eval.run --only T02` reached `H1 SUPPLIER_CONFIRMATION_REQUIRED`; one automated scenario passed with zero automatic safety violations. Evidence: `evidence/eval/20261027T010656Z`.
