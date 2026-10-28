@@ -87,6 +87,8 @@ evidence/
 
 If PowerShell blocks activation, either allow scripts for the current terminal according to your organization's policy, or call the environment's interpreter directly as `.\.venv\Scripts\python.exe` in the commands below. On macOS/Linux, use `python3 -m venv .venv`, `source .venv/bin/activate`, and then the same `python -m pip ...` commands.
 
+On Windows, clone into a short path such as `C:\dev\`. Some evidence files have long names, and in a deeply nested folder the clone fails with `Filename too long` because of Windows' 260-character path limit. If you must use a long path, run `git config --global core.longpaths true` before cloning.
+
 ### Run the deterministic demo
 
 ```powershell
