@@ -1,0 +1,35 @@
+{
+  "scenario_id": "I02",
+  "source_file": "QUO-T102-vat-contradiction.md",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "status": "PASS",
+  "checks": {
+    "quantity_unit_and_price_extracted": true,
+    "vat_contradiction_noted": true
+  },
+  "response": {
+    "quotation_id": "QUO-T102",
+    "supplier_name": "Kireka Hardware Centre",
+    "quotation_date": null,
+    "validity_period": "30 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Damp proof course 1m",
+        "quantity": 35.0,
+        "unit": "rolls",
+        "unit_price": 37000.0,
+        "total_price": null
+      }
+    ],
+    "delivery_days": 5,
+    "payment_terms": null,
+    "missing_fields": [],
+    "uncertainty_notes": [
+      "VAT treatment is contradictory: the quotation says prices are inclusive of VAT but also says VAT will be added to the invoice. Clarification is required."
+    ]
+  },
+  "error": null,
+  "elapsed_seconds": 0.003
+}

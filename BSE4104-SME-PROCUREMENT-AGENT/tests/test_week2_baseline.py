@@ -117,6 +117,40 @@ class Week2QuotationExtractionBaselineTests(unittest.TestCase):
                     else:
                         self.assertEqual(result.get(key), expected_value, msg=f"Case '{case['name']}' failed key '{key}'")
 
+    def test_ambiguous_each_for_reinforcement_bar(self):
+        text = (
+            "Supplier: Ntinda Trade Stores\\n"
+            "Quotation ID: QUO-1006\\n"
+            "Date: 27 August 2026\\n"
+            "Currency: UGX\\n"
+            "Item: Deformed reinforcement bar Y12\\n"
+            "Quantity: 200\\n"
+            "Unit Price: 61500\\n"
+            "Total: 12300000\\n"
+            "Prices inclusive of VAT; delivery to site included.\\n"
+            "---\\n"
+            "Reviewer note: clarify whether each means a 12m length or a "
+            "weight basis."
+        )
+
+        result = extract_quotation_data(text)
+
+        self.assertEqual(len(result["items"]), 1)
+        item = result["items"][0]
+        self.assertEqual(item["quantity"], 200)
+        self.assertEqual(item["unit_price"], 61500.0)
+        self.assertEqual(item["total_price"], 12300000.0)
+        self.assertIsNone(item.get("unit"))
+        self.assertIn("items[0].unit", result["missing_fields"])
+        self.assertTrue(
+            any(
+                "measurement basis" in note.lower()
+                and "clarification" in note.lower()
+                for note in result["uncertainty_notes"]
+            ),
+            "Ambiguous measurement basis must require supplier clarification",
+        )
+
     def test_schema_is_valid_json(self):
         payload = extract_quotation_data("Supplier: Example Supplier\nQuotation ID: Q-010\nItem: Notebook\nQuantity: 2\nUnit Price: 5000\nCurrency: UGX")
         self.assertIsInstance(json.dumps(payload), str)

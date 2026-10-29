@@ -1,0 +1,37 @@
+{
+  "scenario_id": "I04",
+  "source_file": "QUO-T104-words-vs-digits.md",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "status": "PASS",
+  "checks": {
+    "item_quantity_and_unit_extracted": true,
+    "numeric_price_is_24000": true,
+    "words_digits_conflict_noted": true,
+    "unsupported_42000_not_used": true
+  },
+  "response": {
+    "quotation_id": "QUO-T104",
+    "supplier_name": "Ntinda Trade Stores",
+    "quotation_date": null,
+    "validity_period": "30 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Damp proof course 1m",
+        "quantity": 35.0,
+        "unit": "rolls",
+        "unit_price": 24000.0,
+        "total_price": null
+      }
+    ],
+    "delivery_days": 2,
+    "payment_terms": null,
+    "missing_fields": [],
+    "uncertainty_notes": [
+      "Unit price conflict: the price written in words may differ from the numeric UGX amount. The quotation states both 'forty-two thousand shillings (UGX 24,000) per roll'; clarification is required."
+    ]
+  },
+  "error": null,
+  "elapsed_seconds": 0.003
+}

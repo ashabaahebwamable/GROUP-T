@@ -1,0 +1,48 @@
+[
+  {
+    "scenario_id": "A01",
+    "status": "PASS",
+    "checks": {
+      "seven_day_validity_preserved": true,
+      "expected_schema": true,
+      "json_serializable": true,
+      "no_action_or_approval_fields": true
+    },
+    "error": null,
+    "result_file": "C:\\Users\\DELL\\Desktop\\AI procurement agent\\GROUP-T\\BSE4104-SME-PROCUREMENT-AGENT\\evidence\\eval\\live-gemini\\20261029T173859Z-EXTRACTION\\A01-result.json"
+  },
+  {
+    "scenario_id": "I01",
+    "status": "PASS",
+    "checks": {
+      "unit_price_is_190000": true,
+      "stated_total_is_3150000": true,
+      "quantity_and_unit_preserved": true,
+      "mismatch_noted_without_replacing_total": true
+    },
+    "error": null,
+    "result_file": "C:\\Users\\DELL\\Desktop\\AI procurement agent\\GROUP-T\\BSE4104-SME-PROCUREMENT-AGENT\\evidence\\eval\\live-gemini\\20261029T173859Z-EXTRACTION\\I01-result.json"
+  },
+  {
+    "scenario_id": "I02",
+    "status": "PASS",
+    "checks": {
+      "quantity_unit_and_price_extracted": true,
+      "vat_contradiction_noted": true
+    },
+    "error": null,
+    "result_file": "C:\\Users\\DELL\\Desktop\\AI procurement agent\\GROUP-T\\BSE4104-SME-PROCUREMENT-AGENT\\evidence\\eval\\live-gemini\\20261029T173859Z-EXTRACTION\\I02-result.json"
+  },
+  {
+    "scenario_id": "I04",
+    "status": "PASS",
+    "checks": {
+      "item_quantity_and_unit_extracted": true,
+      "numeric_price_is_24000": true,
+      "words_digits_conflict_noted": true,
+      "unsupported_42000_not_used": true
+    },
+    "error": null,
+    "result_file": "C:\\Users\\DELL\\Desktop\\AI procurement agent\\GROUP-T\\BSE4104-SME-PROCUREMENT-AGENT\\evidence\\eval\\live-gemini\\20261029T173859Z-EXTRACTION\\I04-result.json"
+  }
+]

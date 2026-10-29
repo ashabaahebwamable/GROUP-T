@@ -1,0 +1,17 @@
+﻿{
+    "scenario_id":  "A04",
+    "test_type":  "direct_unit_guard_test",
+    "result":  "PASS",
+    "error_code":  "SUPPLIER_NOT_CONFIRMED",
+    "trace_status":  "error",
+    "recommended_supplier_id":  "SUP-01",
+    "computed_supplier_id":  "SUP-01",
+    "draft_creation_called":  false,
+    "integration_test":  {
+                             "passed":  1,
+                             "result":  "PASS",
+                             "test":  "ModelLoopControlTests.test_an_unconfirmed_draft_stops_at_h1"
+                         },
+    "live_gemini_status":  "INCONCLUSIVE",
+    "note":  "Direct mocked H1 guard test passed. This is not a live Gemini scenario pass."
+}

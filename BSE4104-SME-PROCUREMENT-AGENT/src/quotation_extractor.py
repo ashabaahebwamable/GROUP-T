@@ -420,7 +420,26 @@ def extract_quotation_data(raw_text: str) -> Dict[str, Any]:
     if response["currency"] is None:
         response["missing_fields"].append("currency")
 
+    # A reinforcement bar quoted as "each" needs a clear measurement basis.
+    # Ignore reviewer notes after a standalone --- separator.
+    supplier_text = re.split(r"(?m)^\s*---\s*$", text, maxsplit=1)[0]
+
     for idx, item in enumerate(response["items"]):
+        item_name = item.get("item_name") or ""
+        is_reinforcement_bar = (
+            re.search(r"\b(?:reinforcement|rebar)\b", item_name, re.IGNORECASE)
+            and re.search(r"\bbar\b", item_name, re.IGNORECASE)
+        )
+        supplier_says_each = re.search(r"\beach\b", supplier_text, re.IGNORECASE)
+
+        if is_reinforcement_bar and supplier_says_each:
+            item["unit"] = None
+            response["missing_fields"].append(f"items[{idx}].unit")
+            response["uncertainty_notes"].append(
+                f"Item {idx + 1} uses 'each' without a specified measurement "
+                "basis; supplier clarification is required."
+            )
+
         if item.get("item_name") and item.get("unit_price") is None and item.get("quantity") is not None:
             response["missing_fields"].append(f"items[{idx}].unit_price")
 
