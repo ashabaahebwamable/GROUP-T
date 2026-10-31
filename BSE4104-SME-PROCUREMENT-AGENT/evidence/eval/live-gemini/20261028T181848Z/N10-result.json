@@ -1,0 +1,73 @@
+{
+  "scenario_id": "N10",
+  "description": "Extract Kireka Hardware Centre quotation QUO-1002",
+  "status": "FAIL",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "prompt_version": "quotation_extraction_v1.2",
+  "source_file": "knowledge\\quotations\\QUO-1002-kireka-cement.md",
+  "response": {
+    "quotation_id": "QUO-1002",
+    "supplier_name": "Kireka Hardware Centre",
+    "quotation_date": "26th August 2026",
+    "validity_period": "14 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Portland cement 32.5N",
+        "quantity": 200,
+        "unit": "bags",
+        "unit_price": "29,500",
+        "total_price": "5,900,000"
+      }
+    ],
+    "delivery_days": "4 days",
+    "payment_terms": "cash on delivery",
+    "missing_fields": [],
+    "uncertainty_notes": []
+  },
+  "raw_model_response": {
+    "quotation_id": "QUO-1002",
+    "supplier_name": "Kireka Hardware Centre",
+    "quotation_date": "26th August 2026",
+    "validity_period": "14 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Portland cement 32.5N",
+        "quantity": 200,
+        "unit": "bags",
+        "unit_price": "29,500",
+        "total_price": "5,900,000"
+      }
+    ],
+    "delivery_days": "4 days",
+    "payment_terms": "cash on delivery",
+    "missing_fields": [],
+    "uncertainty_notes": []
+  },
+  "checks": {
+    "exact_top_level_keys": true,
+    "items_is_nonempty_list": true,
+    "each_item_has_exact_keys": true,
+    "quotation_id_preserved": true,
+    "supplier_preserved": true,
+    "currency_is_UGX": true,
+    "quantity_is_200": true,
+    "unit_is_bags": true,
+    "unit_price_is_29500": false,
+    "stated_subtotal_is_5900000": false,
+    "validity_preserved": true,
+    "delivery_days_is_4": false,
+    "payment_terms_preserved": true,
+    "vat_exclusive_status_preserved": false,
+    "separate_transport_charge_preserved": false
+  },
+  "error": null,
+  "elapsed_seconds": 46.08,
+  "trace_file": null,
+  "api_call_accounting": {
+    "top_level_model_invocations": 1,
+    "underlying_transport_retries_may_occur": true
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "scenario_id": "N08",
+  "description": "Quotation count for a UGX 2,000,000 requisition",
+  "status": "PASS",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "prompt_version": "policy-qa/v1.0",
+  "query": "How many quotations are required for a requisition worth UGX 2,000,000?",
+  "evidence": [
+    {
+      "source_id": "policy/procurement-policy.md",
+      "content": "2.1 A minimum of three valid quotations must be obtained for any requisition with a total value of UGX 1,000,000 or above.\n2.2 Below UGX 1,000,000, a minimum of two valid quotations is required."
+    }
+  ],
+  "response": {
+    "answer": "A minimum of three valid quotations must be obtained for a requisition worth UGX 2,000,000, as it meets the threshold of UGX 1,000,000 or above.",
+    "citations": [
+      "policy/procurement-policy.md"
+    ],
+    "prompt_version": "policy-qa/v1.0"
+  },
+  "checks": {
+    "states_three_valid_quotations": true,
+    "cites_policy_document": true,
+    "no_obvious_unsupported_large_amount": true
+  },
+  "error": null,
+  "elapsed_seconds": 28.792,
+  "trace_file": "N08-observability.jsonl",
+  "api_call_accounting": {
+    "top_level_model_invocations": 1,
+    "underlying_transport_retries_may_occur": true
+  }
+}

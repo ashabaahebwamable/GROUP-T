@@ -1,0 +1,37 @@
+{
+  "scenario_id": "I01",
+  "source_file": "QUO-T101-wrong-total.md",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "status": "PASS",
+  "checks": {
+    "unit_price_is_190000": true,
+    "stated_total_is_3150000": true,
+    "quantity_and_unit_preserved": true,
+    "mismatch_noted_without_replacing_total": true
+  },
+  "response": {
+    "quotation_id": "QUO-T101",
+    "supplier_name": "Nakawa Building Supplies",
+    "quotation_date": null,
+    "validity_period": "30 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Binding wire 1.6mm",
+        "quantity": 15.0,
+        "unit": "rolls",
+        "unit_price": 190000.0,
+        "total_price": 3150000.0
+      }
+    ],
+    "delivery_days": 3,
+    "payment_terms": "30 days",
+    "missing_fields": [],
+    "uncertainty_notes": [
+      "The stated total does not match quantity multiplied by unit price."
+    ]
+  },
+  "error": null,
+  "elapsed_seconds": 0.001
+}

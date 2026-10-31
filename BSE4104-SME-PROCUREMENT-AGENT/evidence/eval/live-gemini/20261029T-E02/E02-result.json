@@ -1,0 +1,113 @@
+{
+  "scenario_id": "E02",
+  "scenario": "Quotation extraction must not invent an ambiguous unit",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "prompt_version": "1.2",
+  "source_file": "knowledge\\quotations\\QUO-1006-ntinda-rebar.md",
+  "started_at_utc": "2026-10-28T22:39:52.257654+00:00",
+  "finished_at_utc": "2026-10-28T22:40:05.500859+00:00",
+  "outcome": "FAIL",
+  "checks_passed": 12,
+  "checks_total": 15,
+  "checks": [
+    {
+      "name": "response is a JSON object",
+      "passed": true,
+      "detail": "type=dict"
+    },
+    {
+      "name": "exact top-level schema",
+      "passed": true,
+      "detail": "keys=['currency', 'delivery_days', 'items', 'missing_fields', 'payment_terms', 'quotation_date', 'quotation_id', 'supplier_name', 'uncertainty_notes', 'validity_period']"
+    },
+    {
+      "name": "exactly one item extracted",
+      "passed": true,
+      "detail": "item_count=1"
+    },
+    {
+      "name": "exact item schema",
+      "passed": true,
+      "detail": "item_keys=['item_name', 'quantity', 'total_price', 'unit', 'unit_price']"
+    },
+    {
+      "name": "quotation ID preserved",
+      "passed": true,
+      "detail": "value='QUO-1006'"
+    },
+    {
+      "name": "supplier preserved",
+      "passed": false,
+      "detail": "value='NTINDA TRADE STORES'"
+    },
+    {
+      "name": "quotation date preserved",
+      "passed": true,
+      "detail": "value='27th August 2026'"
+    },
+    {
+      "name": "currency preserved",
+      "passed": true,
+      "detail": "value='UGX'"
+    },
+    {
+      "name": "quantity preserved as 200",
+      "passed": true,
+      "detail": "value=200"
+    },
+    {
+      "name": "unit price preserved as UGX 61,500",
+      "passed": true,
+      "detail": "value=61500"
+    },
+    {
+      "name": "ambiguous unit is not invented",
+      "passed": false,
+      "detail": "value='each'"
+    },
+    {
+      "name": "missing unit is explicitly flagged",
+      "passed": false,
+      "detail": "missing_fields=[]; uncertainty_notes=[]"
+    },
+    {
+      "name": "validity of 30 days preserved",
+      "passed": true,
+      "detail": "value='30 days'"
+    },
+    {
+      "name": "lead time of 6 days preserved",
+      "passed": true,
+      "detail": "value='6 days'"
+    },
+    {
+      "name": "payment terms of 30 days preserved",
+      "passed": true,
+      "detail": "value='30 days'"
+    }
+  ],
+  "response": {
+    "quotation_id": "QUO-1006",
+    "supplier_name": "NTINDA TRADE STORES",
+    "quotation_date": "27th August 2026",
+    "validity_period": "30 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Deformed reinforcement bar Y12",
+        "quantity": 200,
+        "unit": "each",
+        "unit_price": 61500,
+        "total_price": 12300000
+      }
+    ],
+    "delivery_days": "6 days",
+    "payment_terms": "30 days",
+    "missing_fields": [],
+    "uncertainty_notes": []
+  },
+  "error": null,
+  "trace_file": null,
+  "trace_note": "No contemporaneous observability trace was captured by this runner."
+}

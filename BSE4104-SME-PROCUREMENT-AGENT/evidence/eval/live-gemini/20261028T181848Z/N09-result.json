@@ -1,0 +1,35 @@
+{
+  "scenario_id": "N09",
+  "description": "Approval authority for a UGX 3,000,000 requisition",
+  "status": "PASS",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "prompt_version": "policy-qa/v1.0",
+  "query": "Who approves a requisition worth UGX 3,000,000?",
+  "evidence": [
+    {
+      "source_id": "policy/procurement-policy.md",
+      "content": "5.1 Requisitions up to UGX 5,000,000 require approval by the operations manager.\n5.2 Requisitions above UGX 5,000,000 require approval by a director.\n5.3 No requisition is approved by virtue of its value being small. Every requisition requires an approval decision by a person.\n5.4 The officer preparing a requisition may not approve it."
+    }
+  ],
+  "response": {
+    "answer": "A requisition worth UGX 3,000,000 requires approval by the operations manager.",
+    "citations": [
+      "policy/procurement-policy.md"
+    ],
+    "prompt_version": "policy-qa/v1.0"
+  },
+  "checks": {
+    "identifies_operations_manager": true,
+    "cites_policy_document": true,
+    "does_not_confuse_director_threshold": true,
+    "no_obvious_unsupported_large_amount": true
+  },
+  "error": null,
+  "elapsed_seconds": 4.315,
+  "trace_file": "N09-observability.jsonl",
+  "api_call_accounting": {
+    "top_level_model_invocations": 1,
+    "underlying_transport_retries_may_occur": true
+  }
+}

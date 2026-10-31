@@ -52,6 +52,153 @@ def _extract_currency(text: str) -> Optional[str]:
     return match.group(1).upper() if match else None
 
 
+def _extract_supplier_from_heading(text: str) -> Optional[str]:
+    """Extract a supplier name from a simple Markdown heading."""
+    for line in text.splitlines():
+        cleaned = re.sub(r"[*#_`]", "", line).strip()
+        if re.fullmatch(r"[A-Z][A-Z0-9 &'.-]{2,}", cleaned):
+            if not re.search(
+                r"quotation|invoice|request|dear sir|regards",
+                cleaned,
+                re.IGNORECASE,
+            ):
+                return cleaned.title()
+    return None
+
+
+def _extract_quotation_reference(text: str) -> Optional[str]:
+    match = re.search(
+        r"Quotation\s*(?:ref(?:erence)?|ID)\s*[:#]?\s*"
+        r"([A-Za-z0-9-]+)",
+        text,
+        re.IGNORECASE,
+    )
+    return match.group(1) if match else None
+
+
+def _extract_validity_period(text: str) -> Optional[str]:
+    match = re.search(
+        r"validity\s+of\s+(?:this\s+)?(?:offer|quotation)"
+        r"\s*[:\-]?\s*(\d+\s+days?)",
+        text,
+        re.IGNORECASE,
+    )
+    if not match:
+        match = re.search(
+            r"validity\s*[:\-]?\s*(\d+\s+days?)",
+            text,
+            re.IGNORECASE,
+        )
+    return re.sub(r"\s+", " ", match.group(1)).strip() if match else None
+
+
+def _extract_quotation_date(text: str) -> Optional[str]:
+    match = re.search(
+        r"Quotation\s*(?:ref(?:erence)?|ID)\s*[:#]?\s*"
+        r"[A-Za-z0-9-]+\s*\|\s*"
+        r"(\d{1,2}(?:st|nd|rd|th)?\s+"
+        r"[A-Za-z]+\s+\d{4})",
+        text,
+        re.IGNORECASE,
+    )
+    return match.group(1) if match else None
+
+
+def _extract_payment_terms(text: str) -> Optional[str]:
+    match = re.search(
+        r"Terms\s*:\s*([^\r\n]+)",
+        text,
+        re.IGNORECASE,
+    )
+    return match.group(1).strip().rstrip(".") if match else None
+
+
+
+
+
+def _extract_letter_item(text: str) -> Optional[Dict[str, Any]]:
+    """Parse letter-style quotation items, including prices on separate lines."""
+    lines = [
+        re.sub(r"\*{1,2}|_{1,2}|`", "", raw_line).strip()
+        for raw_line in text.splitlines()
+    ]
+
+    for index, line in enumerate(lines):
+        # Split item name from quantity using ASCII, en, or em dash.
+        parts = re.split(r"\s+[-\u2013\u2014]\s+", line, maxsplit=1)
+        if len(parts) != 2:
+            continue
+
+        item_name = parts[0].strip()
+        details = parts[1].strip()
+
+        quantity_match = re.match(
+            r"^(\d+(?:\.\d+)?)"
+            r"(?:\s+(bags?|boxes|units|reams|pcs|pieces|kg|litres?|rolls?))?"
+            r"(?:\s*\([^)]*\))?"
+            r"(?:\s*@\s*(?:UGX\s*)?([\d,]+(?:\.\d+)?))?"
+            r"(?:\s*(?:each|per\s+\w+))?\s*$",
+            details,
+            re.IGNORECASE,
+        )
+        if not quantity_match:
+            continue
+
+        quantity = _parse_number(quantity_match.group(1))
+        unit_text = quantity_match.group(2)
+        unit = unit_text.lower() if unit_text else None
+        price_text = quantity_match.group(3)
+
+        unit_price = _parse_number(price_text) if price_text else None
+
+        # Look for a separately stated price if the item line has none.
+        if unit_price is None:
+            for candidate in lines[index + 1:index + 4]:
+                if re.match(r"^\s*(?:unit\s+price|price)\s*:", candidate, re.I):
+                    numeric_price = re.search(
+                        r"\bUGX\s*([\d,]+(?:\.\d+)?)",
+                        candidate,
+                        re.IGNORECASE,
+                    )
+                    if not numeric_price:
+                        numeric_price = re.search(
+                            r"^\s*(?:unit\s+price|price)\s*:\s*"
+                            r"([\d,]+(?:\.\d+)?)",
+                            candidate,
+                            re.IGNORECASE,
+                        )
+                    if numeric_price:
+                        unit_price = _parse_number(numeric_price.group(1))
+                    break
+
+        total_match = re.search(
+            r"(?im)^\s*(?:sub[\s-]*total|total)\s*:\s*"
+            r"(?:UGX\s*)?([\d,]+(?:\.\d+)?)",
+            text,
+        )
+        total_price = (
+            _parse_number(total_match.group(1))
+            if total_match
+            else None
+        )
+
+        if not item_name or quantity is None:
+            continue
+
+        return {
+            "item_name": item_name,
+            "quantity": quantity,
+            "unit": unit,
+            "unit_price": unit_price,
+            "total_price": total_price,
+        }
+
+    return None
+
+
+
+
+
 def _extract_item_from_dash_line(line: str) -> Optional[Dict[str, Any]]:
     if "—" not in line and "–" not in line:
         return None
@@ -138,13 +285,32 @@ def extract_quotation_data(raw_text: str) -> Dict[str, Any]:
         response["uncertainty_notes"] = ["Input is empty or not a recognizable quotation"]
         return response
 
-    response["supplier_name"] = _extract_supplier_name(text)
-    response["quotation_id"] = _extract_quotation_id(text)
+    
+    response["supplier_name"] = (
+        _extract_supplier_name(text)
+        or _extract_supplier_from_heading(text)
+    )
+    response["quotation_id"] = (
+        _extract_quotation_id(text)
+        or _extract_quotation_reference(text)
+    )
     response["currency"] = _extract_currency(text)
+    if response["currency"] is None and re.search(r"\bUGX\b", text, re.IGNORECASE):
+        response["currency"] = "UGX"
+
+    response["quotation_date"] = _extract_quotation_date(text)
+    response["validity_period"] = _extract_validity_period(text)
+    response["payment_terms"] = _extract_payment_terms(text)
     response["delivery_days"] = _extract_delivery_days(text)
+
 
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     items = _extract_items_from_lines(lines)
+
+    if not items:
+        letter_item = _extract_letter_item(text)
+        if letter_item is not None:
+            items = [letter_item]
     if not items and re.search(r"Item\s*[:\-]|Quantity\s*[:\-]|Unit\s*Price\s*[:\-]|Price\s*[:\-]", text, re.IGNORECASE):
         item_name = None
         qty = None
@@ -166,12 +332,111 @@ def extract_quotation_data(raw_text: str) -> Dict[str, Any]:
         if item_name is not None or qty is not None or up is not None or tp is not None:
             items = [{"item_name": item_name, "quantity": qty, "unit_price": up, "total_price": tp}]
 
-    response["items"] = items if items else [{"item_name": None, "quantity": None, "unit_price": None, "total_price": None}]
+    
+    response["items"] = (
+        items
+        if items
+        else [{
+            "item_name": None,
+            "quantity": None,
+            "unit_price": None,
+            "total_price": None,
+        }]
+    )
+
+
+    # Preserve and flag conflicts between written and numeric unit prices.
+    for idx, item in enumerate(response["items"]):
+        price_line_match = re.search(
+            r"(?im)^\s*(?:unit\s+price|price)\s*:\s*(.+)$",
+            text,
+        )
+        if not price_line_match:
+            continue
+
+        price_line = price_line_match.group(1)
+
+        has_written_price = bool(
+            re.search(
+                r"\b(?:thousand|hundred|million)\b",
+                price_line,
+                re.IGNORECASE,
+            )
+        )
+        numeric_prices = re.findall(
+            r"\bUGX\s*([\d,]+(?:\.\d+)?)",
+            price_line,
+            re.IGNORECASE,
+        )
+
+        if has_written_price and numeric_prices:
+            response["uncertainty_notes"].append(
+                "Unit price conflict: the price written in words may "
+                "differ from the numeric UGX amount. The quotation states "
+                f"both '{price_line.strip()}'; clarification is required."
+            )    
+
+
+    # Contradictory VAT statements must not be resolved by assumption.
+    says_vat_inclusive = bool(
+        re.search(r"\binclusive of VAT\b", text, re.IGNORECASE)
+    )
+    says_vat_added = bool(
+        re.search(
+            r"\bVAT\b.{0,80}\b(?:will be added|added to the invoice)\b",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+    if says_vat_inclusive and says_vat_added:
+        response["uncertainty_notes"].append(
+            "VAT treatment is contradictory: the quotation says prices "
+            "are inclusive of VAT but also says VAT will be added to "
+            "the invoice. Clarification is required."
+        )
+
+    # The v1.2 schema has no dedicated fields for these quotation details.
+    if re.search(r"exclusive of VAT", text, re.IGNORECASE):
+        response["uncertainty_notes"].append(
+            "Quotation states that prices are exclusive of VAT."
+        )
+
+    delivery_charge = re.search(
+        r"(?:transport|delivery)\s+to\s+your\s+site\s+"
+        r"(?:is\s+charged\s+separately\s+at|costs?)\s*"
+        r"\*{0,2}\s*(?:UGX\s*)?([\d,]+)\s*\*{0,2}",
+        text,
+        re.IGNORECASE,
+    )
+    if delivery_charge:
+        response["uncertainty_notes"].append(
+            "Separately stated delivery charge: UGX "
+            + delivery_charge.group(1)
+            + "."
+        )
+
 
     if response["currency"] is None:
         response["missing_fields"].append("currency")
 
+    # Reinforcement bars need an explicit measurement basis.
+    # Reviewer notes after a standalone --- separator are not supplier evidence.
     for idx, item in enumerate(response["items"]):
+        item_name = item.get("item_name") or ""
+        is_reinforcement_bar = (
+            re.search(r"\b(?:reinforcement|rebar)\b", item_name, re.IGNORECASE)
+            and re.search(r"\bbar\b", item_name, re.IGNORECASE)
+        )
+
+        if is_reinforcement_bar and not item.get("unit"):
+            item["unit"] = None
+            response["missing_fields"].append(f"items[{idx}].unit")
+            response["uncertainty_notes"].append(
+                f"Item {idx + 1} has no specified measurement basis; "
+                "supplier clarification is required."
+            )
+
         if item.get("item_name") and item.get("unit_price") is None and item.get("quantity") is not None:
             response["missing_fields"].append(f"items[{idx}].unit_price")
 

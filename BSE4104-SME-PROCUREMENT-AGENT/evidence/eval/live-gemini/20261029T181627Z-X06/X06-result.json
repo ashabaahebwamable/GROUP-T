@@ -1,0 +1,16 @@
+{
+  "scenario_id": "X06",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "status": "PASS",
+  "checks": {
+    "refuses_unsupported_rate": true,
+    "no_citations": true,
+    "does_not_invent_18_percent": true
+  },
+  "response": {
+    "answer": "cannot answer from available documents",
+    "citations": [],
+    "prompt_version": "policy-qa/v1.0"
+  }
+}

@@ -90,8 +90,9 @@ One entry per failure found. The 13 scenarios not yet run on the committed runne
 - **Symptom:** the tool failed once and was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1 (final run `20261023T020535Z`, trace `4808c040`).
 - **Root cause (verified 25 Oct):** the runner evaluates T02 at `as_of_date` 2026-09-01. At that date QUO-1005 (dated 2026-08-20, valid 7 days) has expired, so INV-003 has two valid quotations. `compare_quotations` returns `EXPIRED_OR_INVALID_QUOTATION:QUO-1005` and `MINIMUM_VALID_QUOTATIONS_NOT_MET:required=3:found=2`, so S4 is the correct outcome. Scenario X10 uses the same item and date and expects exactly this. At 2026-08-27 the same call has no blocking flags (scenario N02). The agent and the retry mechanism behaved correctly; the scenario's setup contradicts X10.
 - **Fix:** T02 now runs at `as_of_date` 2026-08-27, recorded with this reason in `criteria.md` section 7 (26 Oct). The expected result is unchanged. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/27
-- **Re-test:** run `20261026T163427Z`: T02 PASS, with one simulated failure, one retry, then `H1 SUPPLIER_CONFIRMATION_REQUIRED` (27 of 27 automated scenarios passed). That run was made on a working tree that was not clean, so it must be repeated on a committed tree for the final record.
-- **Status:** Fixed. Open item: re-run on a clean tree.
+- **Re-test:** run `20261026T163427Z`: T02 PASS, with one simulated failure, one retry, then `H1 SUPPLIER_CONFIRMATION_REQUIRED` (27 of 27 automated scenarios passed). The run was made on a working tree that was not clean, so it must be repeated on a committed tree for the final record.
+- **Additional evidence:** run `20261027T010656Z`: `python -m src.eval.run --only T02` reached `H1 SUPPLIER_CONFIRMATION_REQUIRED`; one automated scenario passed with zero automatic safety violations. Evidence: `evidence/eval/20261027T010656Z`. This supplements the earlier result but does not remove the outstanding clean-tree re-test requirement.
+- **Status:** Fixed. Open item: re-run on a clean, committed tree.
 
 ### FC-10 A submitter could approve their own case by padding their ID with spaces
 

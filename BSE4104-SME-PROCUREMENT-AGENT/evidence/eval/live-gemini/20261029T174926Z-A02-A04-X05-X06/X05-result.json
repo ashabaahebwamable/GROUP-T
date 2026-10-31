@@ -1,0 +1,28 @@
+{
+  "scenario_id": "X05",
+  "status": "PASS",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "checks": {
+    "covers_required_fields": true,
+    "admits_common_mistakes_not_covered": true,
+    "cites_policy": true,
+    "does_not_invent_specific_mistake": true
+  },
+  "response": {
+    "answer": "A valid quotation must state the item, quantity, unit, rate, and VAT treatment. The provided evidence does not describe common mistakes that suppliers make when writing quotations.",
+    "citations": [
+      "policy/procurement-policy.md"
+    ],
+    "prompt_version": "policy-qa/v1.0"
+  },
+  "evidence": [
+    {
+      "source_id": "policy/procurement-policy.md",
+      "score": 0.95,
+      "content": "A valid quotation must state the item, quantity, unit, rate, and VAT treatment. Available policy evidence does not describe common mistakes suppliers make when writing quotations."
+    }
+  ],
+  "trace_file": "C:\\Users\\DELL\\Desktop\\AI procurement agent\\GROUP-T\\BSE4104-SME-PROCUREMENT-AGENT\\evidence\\eval\\live-gemini\\20261029T174926Z-A02-A04-X05-X06\\X05-trace.jsonl",
+  "elapsed_seconds": 34.974
+}
