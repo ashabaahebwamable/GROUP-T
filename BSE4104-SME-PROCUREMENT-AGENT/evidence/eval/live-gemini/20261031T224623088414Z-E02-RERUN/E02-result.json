@@ -1,0 +1,114 @@
+{
+  "scenario_id": "E02",
+  "status": "PASS",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "prompt_version": "1.3",
+  "source_file": "knowledge\\quotations\\QUO-1006-ntinda-rebar.md",
+  "started_at_utc": "2026-10-31T22:46:23.089149+00:00",
+  "finished_at_utc": "2026-10-31T22:46:33.811130+00:00",
+  "elapsed_seconds": 10.723,
+  "top_level_model_invocations": 1,
+  "underlying_transport_retries_may_occur": true,
+  "checks": [
+    {
+      "name": "exact top-level schema",
+      "passed": true,
+      "detail": "keys=['currency', 'delivery_days', 'items', 'missing_fields', 'payment_terms', 'quotation_date', 'quotation_id', 'supplier_name', 'uncertainty_notes', 'validity_period']"
+    },
+    {
+      "name": "exactly one item",
+      "passed": true,
+      "detail": "item_count=1"
+    },
+    {
+      "name": "exact item schema",
+      "passed": true,
+      "detail": "item_keys=['item_name', 'quantity', 'total_price', 'unit', 'unit_price']"
+    },
+    {
+      "name": "quotation ID",
+      "passed": true,
+      "detail": "'QUO-1006'"
+    },
+    {
+      "name": "supplier",
+      "passed": true,
+      "detail": "'NTINDA TRADE STORES'"
+    },
+    {
+      "name": "quotation date",
+      "passed": true,
+      "detail": "'27th August 2026'"
+    },
+    {
+      "name": "currency",
+      "passed": true,
+      "detail": "'UGX'"
+    },
+    {
+      "name": "quantity is 200",
+      "passed": true,
+      "detail": "200"
+    },
+    {
+      "name": "unit price is 61,500",
+      "passed": true,
+      "detail": "61500"
+    },
+    {
+      "name": "ambiguous unit is null",
+      "passed": true,
+      "detail": "None"
+    },
+    {
+      "name": "ambiguous unit explicitly flagged",
+      "passed": true,
+      "detail": "missing_fields=['items[0].unit']; notes=[\"The physical measurement basis for items[0].unit ('Deformed reinforcement bar Y12') is undefined as 'each' is used without specifying length, cut, or weight. The supplier must clarify the physical measurement basis.\"]"
+    },
+    {
+      "name": "30-day validity",
+      "passed": true,
+      "detail": "'30 days'"
+    },
+    {
+      "name": "6-day delivery",
+      "passed": true,
+      "detail": "'6 days'"
+    },
+    {
+      "name": "30-day payment terms",
+      "passed": true,
+      "detail": "'30 days'"
+    }
+  ],
+  "checks_passed": 14,
+  "checks_total": 14,
+  "response": {
+    "quotation_id": "QUO-1006",
+    "supplier_name": "NTINDA TRADE STORES",
+    "quotation_date": "27th August 2026",
+    "validity_period": "30 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Deformed reinforcement bar Y12",
+        "quantity": 200,
+        "unit": null,
+        "unit_price": 61500,
+        "total_price": 12300000
+      }
+    ],
+    "delivery_days": "6 days",
+    "payment_terms": "30 days",
+    "missing_fields": [
+      "items[0].unit"
+    ],
+    "uncertainty_notes": [
+      "The physical measurement basis for items[0].unit ('Deformed reinforcement bar Y12') is undefined as 'each' is used without specifying length, cut, or weight. The supplier must clarify the physical measurement basis."
+    ]
+  },
+  "error": null,
+  "trace_file": null,
+  "trace_note": "No contemporaneous observability trace was captured by this runner."
+}

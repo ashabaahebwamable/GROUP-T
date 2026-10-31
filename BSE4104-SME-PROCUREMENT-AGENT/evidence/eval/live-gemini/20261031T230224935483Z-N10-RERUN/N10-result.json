@@ -1,0 +1,118 @@
+{
+  "scenario_id": "N10",
+  "status": "PASS",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "prompt_version": "1.3",
+  "source_file": "knowledge\\quotations\\QUO-1002-kireka-cement.md",
+  "started_at_utc": "2026-10-31T23:02:24.936163+00:00",
+  "finished_at_utc": "2026-10-31T23:02:33.400280+00:00",
+  "elapsed_seconds": 8.464,
+  "top_level_model_invocations": 1,
+  "underlying_transport_retries_may_occur": true,
+  "checks": [
+    {
+      "name": "exact top-level schema",
+      "passed": true,
+      "detail": "keys=['currency', 'delivery_days', 'items', 'missing_fields', 'payment_terms', 'quotation_date', 'quotation_id', 'supplier_name', 'uncertainty_notes', 'validity_period']"
+    },
+    {
+      "name": "exactly one item",
+      "passed": true,
+      "detail": "item_count=1"
+    },
+    {
+      "name": "exact item schema",
+      "passed": true,
+      "detail": "item_keys=['item_name', 'quantity', 'total_price', 'unit', 'unit_price']"
+    },
+    {
+      "name": "quotation ID",
+      "passed": true,
+      "detail": "'QUO-1002'"
+    },
+    {
+      "name": "supplier",
+      "passed": true,
+      "detail": "'Kireka Hardware Centre'"
+    },
+    {
+      "name": "currency",
+      "passed": true,
+      "detail": "'UGX'"
+    },
+    {
+      "name": "quantity is 200",
+      "passed": true,
+      "detail": "200"
+    },
+    {
+      "name": "unit is bags",
+      "passed": true,
+      "detail": "'bags'"
+    },
+    {
+      "name": "unit price is 29,500",
+      "passed": true,
+      "detail": "29500"
+    },
+    {
+      "name": "stated subtotal is 5,900,000",
+      "passed": true,
+      "detail": "5900000"
+    },
+    {
+      "name": "14-day validity",
+      "passed": true,
+      "detail": "'14 days'"
+    },
+    {
+      "name": "4-day delivery",
+      "passed": true,
+      "detail": "'4 days'"
+    },
+    {
+      "name": "cash on delivery",
+      "passed": true,
+      "detail": "'cash on delivery'"
+    },
+    {
+      "name": "VAT-exclusive status preserved",
+      "passed": true,
+      "detail": "uncertainty_notes=['Prices are exclusive of VAT.', 'Transport is charged separately at UGX 180,000 for this load.']"
+    },
+    {
+      "name": "separate UGX 180,000 transport charge preserved",
+      "passed": true,
+      "detail": "uncertainty_notes=['Prices are exclusive of VAT.', 'Transport is charged separately at UGX 180,000 for this load.']"
+    }
+  ],
+  "checks_passed": 15,
+  "checks_total": 15,
+  "response": {
+    "quotation_id": "QUO-1002",
+    "supplier_name": "Kireka Hardware Centre",
+    "quotation_date": "26th August 2026",
+    "validity_period": "14 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Portland cement 32.5N",
+        "quantity": 200,
+        "unit": "bags",
+        "unit_price": 29500,
+        "total_price": 5900000
+      }
+    ],
+    "delivery_days": "4 days",
+    "payment_terms": "cash on delivery",
+    "missing_fields": [],
+    "uncertainty_notes": [
+      "Prices are exclusive of VAT.",
+      "Transport is charged separately at UGX 180,000 for this load."
+    ]
+  },
+  "error": null,
+  "trace_file": null,
+  "trace_note": "No contemporaneous observability trace was captured by this runner."
+}

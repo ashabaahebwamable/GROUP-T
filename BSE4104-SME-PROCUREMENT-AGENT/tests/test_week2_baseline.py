@@ -1,5 +1,6 @@
 import json
 import unittest
+from pathlib import Path
 
 from src.quotation_extractor import extract_quotation_data
 
@@ -150,6 +151,64 @@ class Week2QuotationExtractionBaselineTests(unittest.TestCase):
             ),
             "Ambiguous measurement basis must require supplier clarification",
         )
+
+    def test_markdown_quotation_date_is_extracted(self):
+        project_root = Path(__file__).resolve().parents[1]
+        cases = [
+            (
+                "QUO-1006-ntinda-rebar.md",
+                "27th August 2026",
+            ),
+            (
+                "QUO-1002-kireka-cement.md",
+                "26th August 2026",
+            ),
+        ]
+
+        for filename, expected_date in cases:
+            with self.subTest(quotation=filename):
+                source = (
+                    project_root
+                    / "knowledge"
+                    / "quotations"
+                    / filename
+                )
+                result = extract_quotation_data(
+                    source.read_text(encoding="utf-8")
+                )
+                self.assertEqual(
+                    result["quotation_date"],
+                    expected_date,
+                )
+
+    def test_n10_preserves_vat_and_separate_transport_charge(self):
+        project_root = Path(__file__).resolve().parents[1]
+        source = (
+            project_root
+            / "knowledge"
+            / "quotations"
+            / "QUO-1002-kireka-cement.md"
+        )
+
+        result = extract_quotation_data(
+            source.read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(result["quotation_id"], "QUO-1002")
+        self.assertEqual(result["supplier_name"], "Kireka Hardware Centre")
+        self.assertEqual(result["quotation_date"], "26th August 2026")
+
+        self.assertEqual(len(result["items"]), 1)
+        item = result["items"][0]
+        self.assertEqual(item["quantity"], 200)
+        self.assertEqual(item["unit"], "bags")
+        self.assertEqual(item["unit_price"], 29500.0)
+        self.assertEqual(item["total_price"], 5900000.0)
+        self.assertEqual(result["delivery_days"], 4)
+
+        notes = " ".join(result["uncertainty_notes"]).lower()
+        self.assertIn("exclusive of vat", notes)
+        self.assertIn("180,000", notes)
 
     def test_schema_is_valid_json(self):
         payload = extract_quotation_data("Supplier: Example Supplier\nQuotation ID: Q-010\nItem: Notebook\nQuantity: 2\nUnit Price: 5000\nCurrency: UGX")

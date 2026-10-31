@@ -93,16 +93,18 @@ def _extract_validity_period(text: str) -> Optional[str]:
 
 
 def _extract_quotation_date(text: str) -> Optional[str]:
+    # Remove Markdown emphasis markers before matching the reference line.
+    normalized_text = re.sub(r"\*{1,2}|_{1,2}|`", "", text)
+
     match = re.search(
         r"Quotation\s*(?:ref(?:erence)?|ID)\s*[:#]?\s*"
         r"[A-Za-z0-9-]+\s*\|\s*"
         r"(\d{1,2}(?:st|nd|rd|th)?\s+"
         r"[A-Za-z]+\s+\d{4})",
-        text,
+        normalized_text,
         re.IGNORECASE,
     )
     return match.group(1) if match else None
-
 
 def _extract_payment_terms(text: str) -> Optional[str]:
     match = re.search(
