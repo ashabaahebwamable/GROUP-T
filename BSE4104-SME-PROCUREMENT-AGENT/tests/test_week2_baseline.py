@@ -119,16 +119,16 @@ class Week2QuotationExtractionBaselineTests(unittest.TestCase):
 
     def test_ambiguous_each_for_reinforcement_bar(self):
         text = (
-            "Supplier: Ntinda Trade Stores\\n"
-            "Quotation ID: QUO-1006\\n"
-            "Date: 27 August 2026\\n"
-            "Currency: UGX\\n"
-            "Item: Deformed reinforcement bar Y12\\n"
-            "Quantity: 200\\n"
-            "Unit Price: 61500\\n"
-            "Total: 12300000\\n"
-            "Prices inclusive of VAT; delivery to site included.\\n"
-            "---\\n"
+            "Supplier: Ntinda Trade Stores\n"
+            "Quotation ID: QUO-1006\n"
+            "Date: 27 August 2026\n"
+            "Currency: UGX\n"
+            "Item: Deformed reinforcement bar Y12\n"
+            "Quantity: 200\n"
+            "Unit Price: 61500\n"
+            "Total: 12300000\n"
+            "Prices inclusive of VAT; delivery to site included.\n"
+            "---\n"
             "Reviewer note: clarify whether each means a 12m length or a "
             "weight basis."
         )
