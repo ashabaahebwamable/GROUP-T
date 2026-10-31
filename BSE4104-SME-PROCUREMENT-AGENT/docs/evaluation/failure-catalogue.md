@@ -21,7 +21,7 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 |FC-09|Evaluation scenario|T02: scenario date leaves INV-003 with two valid quotations, so the case cannot reach H1|25 Oct (final run)|Fixed, re-tested on a dirty tree; [PR #27](https://github.com/ashabaahebwamable/GROUP-T/pull/27)|
 |FC-10|Workflow / authorisation|A submitter could approve their own case by padding their ID with spaces|27 Oct (D-05 test work)|Fixed, tested; [PR #28](https://github.com/ashabaahebwamable/GROUP-T/pull/28)|
 |FC-11|Extraction (model)|N10: the model dropped "exclusive of VAT" and the separate transport charge|28 Oct (live Gemini run)|**Open** (fix not yet made)|
-|FC-12|Extraction (model)|E02: the model accepted "each" as the unit instead of reporting it missing|29 Oct (live Gemini run)|**Open** (fix not yet made)|
+|FC-12|Extraction (model)|E02: the model accepted "each" as the unit instead of reporting it missing|29 Oct (live Gemini run)|**Open** (live model not re-tested)|
 
 ## FC-01 Invalid quantity not rejected before tools run
 
@@ -93,9 +93,9 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 
 ### FC-12 Extraction accepts "each" as the unit instead of reporting it missing (scenario E02)
 
-- **Symptom:** for `QUO-1006`, which states 200 "each" with no unit of measure, the model returned unit `each` and left `missing_fields` empty. Policy 2.4 says a quotation with no unit of measure is incomplete; the scenario requires the unit to be null and listed as missing. (The supplier-name check also failed on letter case only, which is a checker artefact.)
+- **Symptom:** for `QUO-1006`, which states 200 "each" with no unit of measure, the live model returned unit `each` and left `missing_fields` empty. Policy 2.4 says a quotation with no unit of measure is incomplete; the scenario requires the unit to be null and listed as missing. (The supplier-name check also failed on letter case only, which is a checker artefact.)
 - **Root cause:** the prompt does not tell the model that a non-unit word such as "each" does not count as a unit of measure, so it took the word literally.
-- **Fix (proposed, not yet made):** add that instruction to the prompt and re-run. **PR: TO FILL**
+- **Fix:** not yet made for the live model. Commit `4ccbb7f` (31 Oct, PR #30) changed the rule-based `src/quotation_extractor.py` so that it flags a reinforcement bar with no unit, but that extractor does not call the language model, so it does not change the failure recorded here. The fix for the model is a prompt instruction. **PR: TO FILL**
 - **Re-test:** re-run E02 live (one request); the unit must be null and listed in `missing_fields`. **TO FILL**
 - **Evidence:** `evidence/eval/live-gemini/20261029T-E02/E02-result.json`. **Status:** Open.
 
@@ -108,8 +108,9 @@ One entry per failure found. All 40 scenarios now have a result; FC-11 and FC-12
 - **Symptom:** the tool failed once and was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1 (final run `20261023T020535Z`, trace `4808c040`).
 - **Root cause (verified 25 Oct):** the runner evaluates T02 at `as_of_date` 2026-09-01. At that date QUO-1005 (dated 2026-08-20, valid 7 days) has expired, so INV-003 has two valid quotations. `compare_quotations` returns `EXPIRED_OR_INVALID_QUOTATION:QUO-1005` and `MINIMUM_VALID_QUOTATIONS_NOT_MET:required=3:found=2`, so S4 is the correct outcome. Scenario X10 uses the same item and date and expects exactly this. At 2026-08-27 the same call has no blocking flags (scenario N02). The agent and the retry mechanism behaved correctly; the scenario's setup contradicts X10.
 - **Fix:** T02 now runs at `as_of_date` 2026-08-27, recorded with this reason in `criteria.md` section 7 (26 Oct). The expected result is unchanged. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/27
-- **Re-test:** run `20261026T163427Z`: T02 PASS, with one simulated failure, one retry, then `H1 SUPPLIER_CONFIRMATION_REQUIRED` (27 of 27 automated scenarios passed). That run was made on a working tree that was not clean, so it must be repeated on a committed tree for the final record.
-- **Status:** Fixed. Open item: re-run on a clean tree.
+- **Re-test:** run `20261026T163427Z`: T02 PASS, with one simulated failure, one retry, then `H1 SUPPLIER_CONFIRMATION_REQUIRED` (27 of 27 automated scenarios passed). The run was made on a working tree that was not clean, so it must be repeated on a committed tree for the final record.
+- **Additional evidence:** run `20261027T010656Z`: `python -m src.eval.run --only T02` reached `H1 SUPPLIER_CONFIRMATION_REQUIRED`; one automated scenario passed with zero automatic safety violations. Evidence: `evidence/eval/20261027T010656Z`. This supplements the earlier result but does not remove the outstanding clean-tree re-test requirement.
+- **Status:** Fixed. Open item: re-run on a clean, committed tree.
 
 ### FC-10 A submitter could approve their own case by padding their ID with spaces
 

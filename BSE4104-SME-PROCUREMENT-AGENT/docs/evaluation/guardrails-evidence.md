@@ -81,19 +81,18 @@ For A03 and A04 the code guards are proved by deterministic tests, not by the li
 
 ## 3. Test output
 
-Run from the project root on 31 Oct 2026 against `main` at `35c082f`:
+Run from the project root on 31 Oct 2026 against `main` at `cc0c6d0` (after PR #30):
 
 ```
 $ python -m pytest tests -q --ignore=tests/test_week3_rag.py --ignore=tests/test_model_client.py
-209 passed, 202 subtests passed
+210 passed, 202 subtests passed
 
 $ python -m src.eval.run --check
 Scenarios in final-scenarios.md: 40
-Automated in the runner: 27
-Not automated yet (13): N08, N09, N10, E02, I01, I02, I04, A01, A02, A03, A04, X05, X06
+Automated in the runner: 40
 ```
 
-The 13 scenarios not automated in the deterministic runner are the model-backed ones. They were run live against Gemini on 28 and 29 Oct with separate scripts (`scripts/live_*.py`, added by PR #30); their results are in `docs/evaluation/final-results.md`. The two test files excluded above need the embedding model and the model client; they pass in CI.
+The runner on `main` automates all 40 scenarios, but for the 13 model-backed ones it uses stand-in models and the rule-based extractor, so those runner results are not evidence of the language model's behaviour. The evidence for model behaviour is the live Gemini runs of 28 and 29 Oct (`scripts/live_*.py`, results under `evidence/eval/live-gemini/`), summarised in `docs/evaluation/final-results.md`. The two test files excluded above need the embedding model and the model client; they pass in CI.
 
 ### 3.2 Gaps to state honestly in the Week 7 report
 
