@@ -81,7 +81,11 @@ def _check_approver(
             f"{approver_id!r} has role {approver_role!r}; only an approver may "
             f"approve, reject or query requisition {requisition.requisition_id}."
         )
-    if requisition.created_by and approver_id == requisition.created_by:
+    # Compare IDs as the store records them (trimmed, case-insensitive), so an
+    # extra space or a different case cannot get the preparer past this check.
+    if requisition.created_by and (
+        str(approver_id).strip().casefold() == str(requisition.created_by).strip().casefold()
+    ):
         raise UnauthorisedActionError(
             f"{approver_id!r} prepared requisition {requisition.requisition_id} "
             "and may not also decide it."

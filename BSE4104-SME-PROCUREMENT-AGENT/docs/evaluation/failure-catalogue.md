@@ -18,6 +18,8 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 |FC-06|Retrieval|Structured lookups bypass the threshold (fixed score 1.0)|24 Sep (W3)|**Open** (still in code)|
 |FC-07|Agent loop / workflow|"Preparer may not approve" check skipped on the case-store path|12 Oct (W5 review)|Fixed, tested; [commit d9615ff](https://github.com/ashabaahebwamable/GROUP-T/commit/d9615ff1f4a643b06df9814db212902de186166a)|
 |FC-08|Model client|Immediate retries exhausted the daily Gemini quota|Sep (W3)|Fixed, tested; [commit 56d5bf0](https://github.com/ashabaahebwamable/GROUP-T/commit/56d5bf033e608e7fcbf32d5c54ff406e71bd05b1)|
+|FC-09|Evaluation scenario|T02: scenario date leaves INV-003 with two valid quotations, so the case cannot reach H1|25 Oct (final run)|Fixed, re-tested on a dirty tree; [PR #27](https://github.com/ashabaahebwamable/GROUP-T/pull/27)|
+|FC-10|Workflow / authorisation|A submitter could approve their own case by padding their ID with spaces|27 Oct (D-05 test work)|Fixed, tested; [PR #28](https://github.com/ashabaahebwamable/GROUP-T/pull/28)|
 
 ## FC-01 Invalid quantity not rejected before tools run
 
@@ -81,14 +83,22 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 
 ## Failures from this evaluation run
 
-**TO FILL** after the full run: add one entry per FAIL in `final-results.md` (symptom, root cause, fix, PR, re-test). Expected candidates: any model-backed scenario that invents a figure, and any scenario whose runner result Ashley overrides on review.
+One entry per failure found. The 13 scenarios not yet run on the committed runner may add more.
 
-### FC-09 — T02 initially blocked by an expired quotation
+### FC-09 (scenario T02): retry succeeds, but the scenario's date blocks continuation
 
-**Initial observation:** T02 failed to reach H1. The simulated tool outage was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS`.
+- **Symptom:** the tool failed once and was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1 (final run `20261023T020535Z`, trace `4808c040`).
+- **Root cause (verified 25 Oct):** the runner evaluates T02 at `as_of_date` 2026-09-01. At that date QUO-1005 (dated 2026-08-20, valid 7 days) has expired, so INV-003 has two valid quotations. `compare_quotations` returns `EXPIRED_OR_INVALID_QUOTATION:QUO-1005` and `MINIMUM_VALID_QUOTATIONS_NOT_MET:required=3:found=2`, so S4 is the correct outcome. Scenario X10 uses the same item and date and expects exactly this. At 2026-08-27 the same call has no blocking flags (scenario N02). The agent and the retry mechanism behaved correctly; the scenario's setup contradicts X10.
+- **Fix:** T02 now runs at `as_of_date` 2026-08-27, recorded with this reason in `criteria.md` section 7 (26 Oct). The expected result is unchanged. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/27
+- **Re-test:** run `20261026T163427Z`: T02 PASS, with one simulated failure, one retry, then `H1 SUPPLIER_CONFIRMATION_REQUIRED` (27 of 27 automated scenarios passed). The run was made on a working tree that was not clean, so it must be repeated on a committed tree for the final record.
+- **Additional evidence:** run `20261027T010656Z`: `python -m src.eval.run --only T02` reached `H1 SUPPLIER_CONFIRMATION_REQUIRED`; one automated scenario passed with zero automatic safety violations. Evidence: `evidence/eval/20261027T010656Z`. This supplements the earlier result but does not remove the outstanding clean-tree re-test requirement.
+- **Status:** Fixed. Open item: re-run on a clean, committed tree.
 
-**Root cause:** T02 used the default evaluation date `2026-09-01`. On that date, QUO-1005 had expired, leaving too few valid quotations for INV-003. The resulting S4 stop was correct procurement-policy behavior, not a retry-recovery defect.
+### FC-10 A submitter could approve their own case by padding their ID with spaces
 
-**Correction:** T02 now explicitly uses `as_of_date="2026-08-27"`, matching N02 and isolating retry recovery. The rationale is recorded in `criteria.md` §7.
-
-**Retest:** PASS on 2026-10-27. `python -m src.eval.run --only T02` reached `H1 SUPPLIER_CONFIRMATION_REQUIRED`; one automated scenario passed with zero automatic safety violations. Evidence: `evidence/eval/20261027T010656Z`.
+- **Symptom:** after submitting a case as `DIRECTOR-1`, approving it as `"DIRECTOR-1 "` or `" DIRECTOR-1"` was not refused, and the case became APPROVED. Reproduced on the case store (the production path) and on the state machine; lower-case variants also passed the state machine when the role was supplied (US-09, guardrail G7).
+- **Root cause:** `_check_approver` in `src/workflow/state_machine.py` compared `approver_id == requisition.created_by` on raw strings. The case store trims IDs for its role lookup, so a padded ID still received the approver role, and the owner check then failed to match. The gap existed before commit `d74db42`, which normalises stored values but not the comparison.
+- **Fix:** IDs are compared trimmed and case-insensitively (5 lines in `state_machine.py`). PR: https://github.com/ashabaahebwamable/GROUP-T/pull/28
+- **Re-test:** `tests/workflow/test_input_normalisation.py`, 15 tests. Padded and lower-case variants of the preparer's ID are refused for approve, reject and query, and a padded ID is refused on the case store; a different approver with spaces around their ID is still allowed and recorded without them. Before the fix the two bypass tests fail; after it all 15 pass. Full suite 209 passed; CI green on PR #28.
+- **Found by:** writing the tests that defect D-05 asked for. Mable merged the fix on 27 Oct.
+- **Status:** Fixed.

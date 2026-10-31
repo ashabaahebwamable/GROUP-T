@@ -5,8 +5,8 @@ recommended supplier, run 2 resumes from the saved case state to a DRAFT and
 hand-off H2, and an approver submits nothing: the demo stops where the agent's
 job ends. No model is called (rule-based planner).
 
-By default every write (draft, tool trace, audit log, retrieval log, supplier
-preference) goes to a temporary folder that is deleted afterwards, so the demo can be repeated before
+By default every write (draft, tool trace, audit log, retrieval log,
+observability trace, supplier preference) goes to a temporary folder that is deleted afterwards, so the demo can be repeated before
 the final presentation without changing the repository. Pass --persist to
 write to the real data and evidence files instead.
 
@@ -74,6 +74,12 @@ def main(persist: bool) -> None:
                 ),
                 "lookup_policy": functools.partial(lookup_policy, trace_path=None),
             }))
+            # The observability layer writes a trace for every run. Redirect its
+            # default file in every module that has already imported it.
+            for module_name in ("src.observability", "src.agent.loop", "src.agent.tools_router", "src.rag.answer"):
+                module = sys.modules.get(module_name)
+                if module is not None and hasattr(module, "DEFAULT_TRACE_PATH"):
+                    stack.enter_context(patch.object(module, "DEFAULT_TRACE_PATH", tmp / "observability.jsonl"))
             # confirm_supplier() saves a supplier preference; keep it, and the
             # hint read back by the router, in the temporary folder too.
             preferences = tmp / "application_state.sqlite3"

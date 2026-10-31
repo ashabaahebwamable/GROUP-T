@@ -25,6 +25,16 @@ def _isolate_run_logs(tmp_path, monkeypatch):
     monkeypatch.setattr(answer, "DEFAULT_TRACE_PATH", trace_path)
     monkeypatch.setattr(tools_router, "DEFAULT_TRACE_PATH", trace_path)
 
+    # retrieve() and lookup_policy() bind the retrieval log as a keyword-only
+    # default when they are defined, so patching the constant has no effect.
+    # Redirect the defaults themselves.
+    from src.rag import retrieve
+    from src.tools import policy
+
+    retrieval_path = tmp_path / "retrieval.jsonl"
+    monkeypatch.setitem(retrieve.retrieve.__kwdefaults__, "trace_path", retrieval_path)
+    monkeypatch.setitem(policy.lookup_policy.__kwdefaults__, "trace_path", retrieval_path)
+
 
 @pytest.fixture(autouse=True)
 def _isolate_preference_database(tmp_path, monkeypatch):
