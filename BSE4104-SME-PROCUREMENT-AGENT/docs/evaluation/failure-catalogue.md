@@ -12,7 +12,7 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 |-|-|-|-|-|
 |FC-01|Agent loop|Invalid quantity not rejected before tools run|19 Oct (E05)|Fixed, re-tested; [PR #16](https://github.com/ashabaahebwamable/GROUP-T/pull/16)|
 |FC-02|Tools / safety|Evaluation runner calls a human-only action from `src/`|22 Oct (test suite)|Fixed, re-tested; [PR #16](https://github.com/ashabaahebwamable/GROUP-T/pull/16)|
-|FC-03|Observability|Evaluation runner wrote to the real trace log|22 Oct (smoke run)|Fixed, re-tested; [PR #17](https://github.com/ashabaahebwamable/GROUP-T/pull/17)|
+|FC-03|Observability|Evaluation runner wrote to the real trace log|22 Oct (smoke run)|Fixed, re-tested; [PR #21](https://github.com/ashabaahebwamable/GROUP-T/pull/21)|
 |FC-04|Retrieval|Citations name the file, not the clause|24 Sep (W3)|**Open** (proposed in Week 3, not built as of 22 Oct)|
 |FC-05|Retrieval|Similarity threshold does not separate answerable from unanswerable|24 Sep (W3)|**Open** (proposed in Week 3, not built as of 22 Oct)|
 |FC-06|Retrieval|Structured lookups bypass the threshold (fixed score 1.0)|24 Sep (W3)|**Open** (still in code)|
@@ -20,6 +20,8 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 |FC-08|Model client|Immediate retries exhausted the daily Gemini quota|Sep (W3)|Fixed, tested; [commit 56d5bf0](https://github.com/ashabaahebwamable/GROUP-T/commit/56d5bf033e608e7fcbf32d5c54ff406e71bd05b1)|
 |FC-09|Evaluation scenario|T02: scenario date leaves INV-003 with two valid quotations, so the case cannot reach H1|25 Oct (final run)|Fixed, re-tested on a dirty tree; [PR #27](https://github.com/ashabaahebwamable/GROUP-T/pull/27)|
 |FC-10|Workflow / authorisation|A submitter could approve their own case by padding their ID with spaces|27 Oct (D-05 test work)|Fixed, tested; [PR #28](https://github.com/ashabaahebwamable/GROUP-T/pull/28)|
+|FC-11|Extraction (model)|N10: the model dropped "exclusive of VAT" and the separate transport charge|28 Oct (live Gemini run)|**Open** (fix not yet made)|
+|FC-12|Extraction (model)|E02: the model accepted "each" as the unit instead of reporting it missing|29 Oct (live Gemini run)|**Open** (fix not yet made)|
 
 ## FC-01 Invalid quantity not rejected before tools run
 
@@ -40,7 +42,7 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 
 * **Symptom:** after `python -m src.eval.run --smoke --only E05`, the untracked file `evidence/traces/observability.jsonl` appeared with 4 records. `criteria.md` section 4 requires evidence logs to be unchanged after a run.
 * **Root cause:** `Sandbox` redirected the tool trace, audit log, requisitions and preferences, but not the structured request traces. `loop.py`, `tools_router.py` and `rag/answer.py` each fall back to `DEFAULT_TRACE_PATH`.
-* **Fix:** `Sandbox` now patches `DEFAULT_TRACE_PATH` in those three modules to a file in the temporary folder (`src/eval/run.py`). PR: https://github.com/ashabaahebwamable/GROUP-T/pull/17
+* **Fix:** the runner's `Sandbox` now patches `DEFAULT_TRACE_PATH` in the modules that use it to a file in the temporary folder (`scripts/eval_runner.py`). It reached `main` in PR #21 (23 Oct, Caisey's runner), which already contained the same change, so the separate PR #17 was closed unmerged. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/21
 * **Re-test:** the smoke run of E05 and T01 passes and `git status` shows no new file under `evidence/`. The full-suite run also leaves no such file.
 
 ## FC-04 Citations name the file, not the clause
@@ -81,18 +83,33 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 * **Fix:** 5xx now backs off 5 s then 15 s; 429 is not retried (Week 3 failure log, 27 Sep). Pushed directly to `main` by Ashaba Ahebwa Mable with no pull request, so the commit is the evidence: https://github.com/ashabaahebwamable/GROUP-T/commit/56d5bf033e608e7fcbf32d5c54ff406e71bd05b1
 * **Re-test:** CI run on PR #16: tests/test_model_client.py, 4 passed.
 
+### FC-11 Extraction drops the VAT status and a separate transport charge (scenario N10)
+
+- **Symptom:** live Gemini extraction of `QUO-1002` returned the correct supplier, quantity, unit, price, total, validity, lead time and terms. It omitted that prices are exclusive of VAT and that transport is charged separately at UGX 180,000, and left `missing_fields` and `uncertainty_notes` empty. (Three other checks also failed, but only because the model returned correct values as strings such as `"29,500"`; that is a checker strictness issue, not a model error.)
+- **Root cause:** the v1.2 extraction schema has no field for VAT treatment or a separate delivery charge, and the prompt does not require the model to record them as notes when the letter states them, so cost-relevant facts were dropped silently. Policy 3.1 compares quotations on landed cost, so these facts change the result.
+- **Fix (proposed, not yet made):** add VAT-treatment and delivery-charge fields to the schema, or require an uncertainty note when a letter states either, and make the numeric checks accept formatted strings. **PR: TO FILL**
+- **Re-test:** re-run N10 live (one request) and compare with the letter. **TO FILL**
+- **Evidence:** `evidence/eval/live-gemini/20261028T181848Z/N10-result.json`. **Status:** Open.
+
+### FC-12 Extraction accepts "each" as the unit instead of reporting it missing (scenario E02)
+
+- **Symptom:** for `QUO-1006`, which states 200 "each" with no unit of measure, the model returned unit `each` and left `missing_fields` empty. Policy 2.4 says a quotation with no unit of measure is incomplete; the scenario requires the unit to be null and listed as missing. (The supplier-name check also failed on letter case only, which is a checker artefact.)
+- **Root cause:** the prompt does not tell the model that a non-unit word such as "each" does not count as a unit of measure, so it took the word literally.
+- **Fix (proposed, not yet made):** add that instruction to the prompt and re-run. **PR: TO FILL**
+- **Re-test:** re-run E02 live (one request); the unit must be null and listed in `missing_fields`. **TO FILL**
+- **Evidence:** `evidence/eval/live-gemini/20261029T-E02/E02-result.json`. **Status:** Open.
+
 ## Failures from this evaluation run
 
-One entry per failure found. The 13 scenarios not yet run on the committed runner may add more.
+One entry per failure found. All 40 scenarios now have a result; FC-11 and FC-12 come from the live runs, and the final record should be repeated on a committed tree.
 
 ### FC-09 (scenario T02): retry succeeds, but the scenario's date blocks continuation
 
 - **Symptom:** the tool failed once and was retried successfully, but the agent stopped at `S4 POLICY_BLOCKING_FLAGS` instead of reaching H1 (final run `20261023T020535Z`, trace `4808c040`).
 - **Root cause (verified 25 Oct):** the runner evaluates T02 at `as_of_date` 2026-09-01. At that date QUO-1005 (dated 2026-08-20, valid 7 days) has expired, so INV-003 has two valid quotations. `compare_quotations` returns `EXPIRED_OR_INVALID_QUOTATION:QUO-1005` and `MINIMUM_VALID_QUOTATIONS_NOT_MET:required=3:found=2`, so S4 is the correct outcome. Scenario X10 uses the same item and date and expects exactly this. At 2026-08-27 the same call has no blocking flags (scenario N02). The agent and the retry mechanism behaved correctly; the scenario's setup contradicts X10.
 - **Fix:** T02 now runs at `as_of_date` 2026-08-27, recorded with this reason in `criteria.md` section 7 (26 Oct). The expected result is unchanged. PR: https://github.com/ashabaahebwamable/GROUP-T/pull/27
-- **Re-test:** run `20261026T163427Z`: T02 PASS, with one simulated failure, one retry, then `H1 SUPPLIER_CONFIRMATION_REQUIRED` (27 of 27 automated scenarios passed). The run was made on a working tree that was not clean, so it must be repeated on a committed tree for the final record.
-- **Additional evidence:** run `20261027T010656Z`: `python -m src.eval.run --only T02` reached `H1 SUPPLIER_CONFIRMATION_REQUIRED`; one automated scenario passed with zero automatic safety violations. Evidence: `evidence/eval/20261027T010656Z`. This supplements the earlier result but does not remove the outstanding clean-tree re-test requirement.
-- **Status:** Fixed. Open item: re-run on a clean, committed tree.
+- **Re-test:** run `20261026T163427Z`: T02 PASS, with one simulated failure, one retry, then `H1 SUPPLIER_CONFIRMATION_REQUIRED` (27 of 27 automated scenarios passed). That run was made on a working tree that was not clean, so it must be repeated on a committed tree for the final record.
+- **Status:** Fixed. Open item: re-run on a clean tree.
 
 ### FC-10 A submitter could approve their own case by padding their ID with spaces
 
