@@ -20,8 +20,8 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 |FC-08|Model client|Immediate retries exhausted the daily Gemini quota|Sep (W3)|Fixed, tested; [commit 56d5bf0](https://github.com/ashabaahebwamable/GROUP-T/commit/56d5bf033e608e7fcbf32d5c54ff406e71bd05b1)|
 |FC-09|Evaluation scenario|T02: scenario date leaves INV-003 with two valid quotations, so the case cannot reach H1|25 Oct (final run)|Fixed, re-tested on a dirty tree; [PR #27](https://github.com/ashabaahebwamable/GROUP-T/pull/27)|
 |FC-10|Workflow / authorisation|A submitter could approve their own case by padding their ID with spaces|27 Oct (D-05 test work)|Fixed, tested; [PR #28](https://github.com/ashabaahebwamable/GROUP-T/pull/28)|
-|FC-11|Extraction (model)|N10: the model dropped "exclusive of VAT" and the separate transport charge|28 Oct (live Gemini run)|**Open** (fix not yet made)|
-|FC-12|Extraction (model)|E02: the model accepted "each" as the unit instead of reporting it missing|29 Oct (live Gemini run)|**Open** (live model not re-tested)|
+|FC-11|Extraction (model)|N10: the model dropped "exclusive of VAT" and the separate transport charge|28 Oct (live Gemini run)|Fixed for the tested letter, re-tested live; [commit 645ce55](https://github.com/ashabaahebwamable/GROUP-T/commit/645ce55c3ed1dd6b973989e048751f8185b73dd8)|
+|FC-12|Extraction (model)|E02: the model accepted "each" as the unit instead of reporting it missing|29 Oct (live Gemini run)|Fixed for the tested letter, re-tested live; [commit 645ce55](https://github.com/ashabaahebwamable/GROUP-T/commit/645ce55c3ed1dd6b973989e048751f8185b73dd8)|
 
 ## FC-01 Invalid quantity not rejected before tools run
 
@@ -87,21 +87,21 @@ A failure is remediated only when there is a fix (PR link) **and** a re-test res
 
 - **Symptom:** live Gemini extraction of `QUO-1002` returned the correct supplier, quantity, unit, price, total, validity, lead time and terms. It omitted that prices are exclusive of VAT and that transport is charged separately at UGX 180,000, and left `missing_fields` and `uncertainty_notes` empty. (Three other checks also failed, but only because the model returned correct values as strings such as `"29,500"`; that is a checker strictness issue, not a model error.)
 - **Root cause:** the v1.2 extraction schema has no field for VAT treatment or a separate delivery charge, and the prompt does not require the model to record them as notes when the letter states them, so cost-relevant facts were dropped silently. Policy 3.1 compares quotations on landed cost, so these facts change the result.
-- **Fix (proposed, not yet made):** add VAT-treatment and delivery-charge fields to the schema, or require an uncertainty note when a letter states either, and make the numeric checks accept formatted strings. **PR: TO FILL**
-- **Re-test:** re-run N10 live (one request) and compare with the letter. **TO FILL**
-- **Evidence:** `evidence/eval/live-gemini/20261028T181848Z/N10-result.json`. **Status:** Open.
+- **Fix:** prompt v1.3 (`prompts/quotation_extraction_v1.3.txt`, commit 645ce55, 1 Nov, pushed directly to `main` with no pull request) tells the model to record "exclusive of VAT" and any separately stated transport or delivery charge in `uncertainty_notes` when the schema has no field for them. The schema is unchanged. Commit: https://github.com/ashabaahebwamable/GROUP-T/commit/645ce55c3ed1dd6b973989e048751f8185b73dd8
+- **Re-test:** live Gemini, 31 Oct 23:02 UTC, prompt v1.3: N10 PASS (15 of 15 checks). The model recorded "Prices are exclusive of VAT." and "Transport is charged separately at UGX 180,000 for this load." and returned numeric price and total. Evidence: `evidence/eval/live-gemini/20261031T230224935483Z-N10-RERUN/N10-result.json`.
+- **Caveat:** the prompt's example sentences reuse this letter's wording and the re-test used the same letter, so generalisation is not shown; one run only. A held-out letter is still needed. **Status:** Fixed for the tested letter.
 
 ### FC-12 Extraction accepts "each" as the unit instead of reporting it missing (scenario E02)
 
 - **Symptom:** for `QUO-1006`, which states 200 "each" with no unit of measure, the live model returned unit `each` and left `missing_fields` empty. Policy 2.4 says a quotation with no unit of measure is incomplete; the scenario requires the unit to be null and listed as missing. (The supplier-name check also failed on letter case only, which is a checker artefact.)
 - **Root cause:** the prompt does not tell the model that a non-unit word such as "each" does not count as a unit of measure, so it took the word literally.
-- **Fix:** not yet made for the live model. Commit `4ccbb7f` (31 Oct, PR #30) changed the rule-based `src/quotation_extractor.py` so that it flags a reinforcement bar with no unit, but that extractor does not call the language model, so it does not change the failure recorded here. The fix for the model is a prompt instruction. **PR: TO FILL**
-- **Re-test:** re-run E02 live (one request); the unit must be null and listed in `missing_fields`. **TO FILL**
-- **Evidence:** `evidence/eval/live-gemini/20261029T-E02/E02-result.json`. **Status:** Open.
+- **Fix:** prompt v1.3 (commit 645ce55) says that "each" alone does not define a unit of measure: the unit must be null, listed in `missing_fields` as `items[0].unit`, and explained in `uncertainty_notes`. Commit: https://github.com/ashabaahebwamable/GROUP-T/commit/645ce55c3ed1dd6b973989e048751f8185b73dd8. (The earlier commit `4ccbb7f` changed only the rule-based extractor, which does not call the model, so it does not affect this failure.)
+- **Re-test:** live Gemini, 31 Oct 22:46 UTC, prompt v1.3: E02 PASS (14 of 14 checks): unit null, `items[0].unit` in `missing_fields`, quantity and prices preserved. Evidence: `evidence/eval/live-gemini/20261031T224623088414Z-E02-RERUN/E02-result.json`.
+- **Caveat:** the prompt's example is this letter ("200 deformed reinforcement bars Y12 @ UGX 61,500 each"), and the re-test used the same letter, so generalisation is not shown; one run only. A held-out letter with a different item is still needed. **Status:** Fixed for the tested letter.
 
 ## Failures from this evaluation run
 
-One entry per failure found. All 40 scenarios now have a result; FC-11 and FC-12 come from the live runs, and the final record should be repeated on a committed tree.
+One entry per failure found. All 40 scenarios now have a result; FC-11 and FC-12 come from the live runs and were fixed by prompt v1.3 and re-tested once each; the final record should be repeated on a committed tree.
 
 ### FC-09 (scenario T02): retry succeeds, but the scenario's date blocks continuation
 
