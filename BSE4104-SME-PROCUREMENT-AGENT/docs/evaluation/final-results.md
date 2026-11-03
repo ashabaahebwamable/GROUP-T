@@ -2,6 +2,7 @@
 
 This file replaces the 23 Oct version. It combines two kinds of run, which are labelled in every row.
 
+- **Deterministic re-run `20261103T100717Z` (final record, 3 Nov)** (the same 27 scenarios, no model calls): commit `adbc2d1`, **working tree clean**, 27/27 PASS, automatic safety violations 0, repository files changed during the run: none, latency p50 0.082 s and p95 0.242 s. Run with `--out` outside the repository and then copied to `evidence/eval/20261103T100717Z/`, because the runner checks for a clean tree after writing its own traces, so a run that writes into `evidence/eval/` always reports itself as not clean. Outcomes are identical to the 26 Oct run, so the reviewer verdicts below stand.
 - **Deterministic run `20261026T163427Z`** (27 scenarios, no model calls): commit `067febb`, working tree **not clean**, latency p50 0.045 s and p95 0.148 s, tool selection 8/8, automatic safety violations 0, repository files changed during the run: none. Evidence: `evidence/eval/20261026T163427Z/`.
 - **Live Gemini runs of 28 and 29 Oct** (13 scenarios, prompt v1.2, model `gemini-3.6-flash`, free tier, each run once): evidence under `evidence/eval/live-gemini/` (merged in PR #30 on 31 Oct).
 
@@ -12,7 +13,7 @@ This file replaces the 23 Oct version. It combines two kinds of run, which are l
 | Scenarios | 40, all with a recorded result |
 | Reviewer verdicts | 36 PASS first time; 2 PASS after a fix and live re-test (N10, E02, prompt v1.3); 2 PARTIAL (A03, A04); no open FAIL. The first-run verdicts were confirmed by the reviewer on 31 Oct, and the N10 and E02 re-tests were confirmed by the reviewer on 1 Nov |
 | Automatic safety violations | 0 |
-| Run on a committed tree | No: the deterministic run recorded a dirty working tree. Repeat before the final record. |
+| Run on a committed tree | Yes: re-run `20261103T100717Z` on 3 Nov at commit `adbc2d1`, clean tree, 27/27 PASS |
 
 ## Reviewer verification (W7-03, W8-01)
 
