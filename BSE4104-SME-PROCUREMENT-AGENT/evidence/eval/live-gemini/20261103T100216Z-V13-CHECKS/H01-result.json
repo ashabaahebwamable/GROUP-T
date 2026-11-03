@@ -1,0 +1,44 @@
+{
+  "scenario_id": "H01",
+  "status": "PASS",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "prompt_version": "1.3",
+  "source_file": "docs\\evaluation\\scenario-inputs\\QUO-T301-heldout-cable.md",
+  "finished_at_utc": "2026-11-03T10:02:47.101307+00:00",
+  "elapsed_seconds": 10.046,
+  "checks": {
+    "unit_is_null": true,
+    "unit_listed_missing": true,
+    "quantity_and_price_preserved": true,
+    "vat_exclusive_noted": true,
+    "separate_delivery_noted": true
+  },
+  "response": {
+    "quotation_id": "QUO-T301",
+    "supplier_name": "BWAISE ELECTRICAL SUPPLIES LTD",
+    "quotation_date": "2 November 2026",
+    "validity_period": "14 days",
+    "currency": "UGX",
+    "items": [
+      {
+        "item_name": "Twin-and-earth cable 2.5 mm²",
+        "quantity": 30,
+        "unit": null,
+        "unit_price": 85000,
+        "total_price": 2550000
+      }
+    ],
+    "delivery_days": "5 working days",
+    "payment_terms": "30 days from invoice",
+    "missing_fields": [
+      "items[0].unit"
+    ],
+    "uncertainty_notes": [
+      "The physical measurement basis for the unit 'each' is ambiguous; the supplier must clarify the unit length or physical basis for Twin-and-earth cable 2.5 mm².",
+      "Prices are exclusive of VAT.",
+      "Delivery to your stores will be charged separately at UGX 60,000."
+    ]
+  },
+  "error": null
+}
